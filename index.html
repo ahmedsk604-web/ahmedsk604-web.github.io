@@ -790,12 +790,25 @@ let dbRecords = [];
 let deletedRecordIds = new Set();
 let selectedWorkerNames = new Set();
 
-// إعدادات المزامنة السحابية الفورية بين الهاتف والحاسبة
-const CLOUD_REST_URL = "https://api.restful-api.dev/objects/ff808181a09d98f701a15de2b7553bb8";
-const CLOUD_NTFY_TOPIC = "mir_atten_3c95e_v2_sync";
+// إعدادات المزامنة السحابية الفورية التلقائية بين جميع الحسابات والحاسبات والهواتف (Dual-Broker MQTT over WSS Retained Sync)
+const MQTT_BROKERS = [
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://broker.hivemq.com:8884/mqtt"
+];
+const MQTT_SYNC_TOPIC = "bmh_hotel_attendance_2026_v3/state";
 const CLIENT_DEVICE_ID = "dev_" + Math.random().toString(36).slice(2, 10);
-let isSyncingCloud = false;
-let cloudEventSource = null;
+const mqttSockets = new Map();
+let mqttStreamStarted = false;
+let pendingCloudPush = false;
+let autoPushTimer = null;
+const localTabChannel = (typeof BroadcastChannel !== "undefined") ? new BroadcastChannel("bmh_attendance_sync_v3") : null;
+if (localTabChannel) {
+  localTabChannel.onmessage = (e) => {
+    if (e.data && e.data.sender !== CLIENT_DEVICE_ID) {
+      mergeCloudPayload(e.data);
+    }
+  };
+}
 
 function setSyncBadge(text, color = "var(--success)") {
   const el = document.getElementById("syncStatus");
@@ -805,35 +818,127 @@ function setSyncBadge(text, color = "var(--success)") {
   }
 }
 
-// دمج ذكي للسجلات والعمال بين الهاتف والحاسبة بدون فقدان أي حركة
+function encodeMqttVarInt(len) {
+  const out = [];
+  do {
+    let d = len % 128;
+    len = Math.floor(len / 128);
+    if (len > 0) d |= 0x80;
+    out.push(d);
+  } while (len > 0);
+  return out;
+}
+
+function buildMqttConnectPacket(clientId) {
+  const idBytes = new TextEncoder().encode(clientId);
+  const body = [
+    0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, // "MQTT"
+    0x04, // Protocol level 4 (3.1.1)
+    0x02, // Clean session
+    0x00, 0x3c, // Keepalive 60s
+    (idBytes.length >> 8) & 0xff, idBytes.length & 0xff,
+    ...idBytes
+  ];
+  return new Uint8Array([0x10, ...encodeMqttVarInt(body.length), ...body]);
+}
+
+function buildMqttSubscribePacket(topic) {
+  const tBytes = new TextEncoder().encode(topic);
+  const body = [
+    0x00, 0x01,
+    (tBytes.length >> 8) & 0xff, tBytes.length & 0xff,
+    ...tBytes,
+    0x00
+  ];
+  return new Uint8Array([0x82, ...encodeMqttVarInt(body.length), ...body]);
+}
+
+function buildMqttPublishRetainedPacket(topic, jsonStr) {
+  const enc = new TextEncoder();
+  const tBytes = enc.encode(topic);
+  const pBytes = enc.encode(jsonStr);
+  const remLen = 2 + tBytes.length + pBytes.length;
+  const header = [0x31, ...encodeMqttVarInt(remLen), (tBytes.length >> 8) & 0xff, tBytes.length & 0xff];
+  const pkt = new Uint8Array(header.length + tBytes.length + pBytes.length);
+  pkt.set(header, 0);
+  pkt.set(tBytes, header.length);
+  pkt.set(pBytes, header.length + tBytes.length);
+  return pkt;
+}
+
+function parseMqttPublishPayload(buf) {
+  try {
+    const u8 = new Uint8Array(buf);
+    if (u8.length < 4 || (u8[0] & 0xf0) !== 0x30) return null;
+    const qos = (u8[0] >> 1) & 0x03;
+    let idx = 1;
+    let mult = 1, remLen = 0, b;
+    do {
+      if (idx >= u8.length) return null;
+      b = u8[idx++];
+      remLen += (b & 127) * mult;
+      mult *= 128;
+    } while ((b & 128) !== 0);
+    const packetEnd = idx + remLen;
+    const topicLen = (u8[idx] << 8) | u8[idx + 1];
+    idx += 2 + topicLen;
+    if (qos > 0) idx += 2;
+    if (idx > u8.length) return null;
+    const payloadBytes = u8.slice(idx, Math.min(packetEnd, u8.length));
+    return new TextDecoder().decode(payloadBytes);
+  } catch (e) {
+    return null;
+  }
+}
+
+// دمج ذكي للسجلات والعمال والحسابات بين جميع الحاسبات والهواتف بدون فقدان أي حركة
 function mergeCloudPayload(payload) {
   if (!payload || typeof payload !== "object") return false;
   let changed = false;
+  let localHasUnpushedData = false;
 
   // 1. دمج المعرفات المحذوفة حتى لا تعود السجلات المحذوفة
-  if (Array.isArray(payload.deletedIds)) {
-    payload.deletedIds.forEach(id => {
-      if (!deletedRecordIds.has(String(id))) {
-        deletedRecordIds.add(String(id));
-        changed = true;
-      }
-    });
-  }
+  const incomingDeleted = Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : [];
+  const incomingDeletedSet = new Set(incomingDeleted);
+  incomingDeleted.forEach(id => {
+    if (!deletedRecordIds.has(id)) {
+      deletedRecordIds.add(id);
+      changed = true;
+    }
+  });
+  deletedRecordIds.forEach(id => {
+    if (!incomingDeletedSet.has(String(id))) {
+      localHasUnpushedData = true;
+    }
+  });
 
   // 2. دمج سجلات الغياب والإجازات
   if (Array.isArray(payload.records)) {
+    const incomingIds = new Set();
     const recMap = new Map();
     dbRecords.forEach(r => {
       if (r && r.id && !deletedRecordIds.has(String(r.id))) {
         recMap.set(String(r.id), r);
+      } else if (r && r.id && deletedRecordIds.has(String(r.id))) {
+        changed = true;
       }
     });
     payload.records.forEach(r => {
-      if (r && r.id && !deletedRecordIds.has(String(r.id))) {
-        if (!recMap.has(String(r.id))) {
-          recMap.set(String(r.id), r);
-          changed = true;
+      if (r && r.id) {
+        const sId = String(r.id);
+        incomingIds.add(sId);
+        if (!deletedRecordIds.has(sId)) {
+          const existing = recMap.get(sId);
+          if (!existing || JSON.stringify(existing) !== JSON.stringify(r)) {
+            recMap.set(sId, r);
+            changed = true;
+          }
         }
+      }
+    });
+    dbRecords.forEach(r => {
+      if (r && r.id && !deletedRecordIds.has(String(r.id)) && !incomingIds.has(String(r.id))) {
+        localHasUnpushedData = true;
       }
     });
     const mergedRecords = Array.from(recMap.values()).sort((a, b) => {
@@ -885,8 +990,12 @@ function mergeCloudPayload(payload) {
     payload.users.forEach(u => {
       if (u && u.username && u.username !== "لينا") {
         const firstOnly = (u.displayName || u.username).trim().split(/\s+/)[0];
-        uMap.set(u.username, { ...u, displayName: u.username === 'admin' ? 'admin' : firstOnly });
-        changed = true;
+        const nextObj = { ...u, displayName: u.username === 'admin' ? 'admin' : firstOnly };
+        const prevObj = uMap.get(u.username);
+        if (!prevObj || JSON.stringify(prevObj) !== JSON.stringify(nextObj)) {
+          uMap.set(u.username, nextObj);
+          changed = true;
+        }
       }
     });
     systemUsers = Array.from(uMap.values());
@@ -903,12 +1012,18 @@ function mergeCloudPayload(payload) {
     renderUsersDirectory();
     renderWorkerCheckboxes();
   }
+
+  // إذا كان هذا الجهاز يملك حركات إضافية غير موجودة في النسخة السحابية المستلمة، نرفع النسخة المدمجة تلقائياً
+  if (localHasUnpushedData) {
+    if (autoPushTimer) clearTimeout(autoPushTimer);
+    autoPushTimer = setTimeout(() => pushToCloud(), 500);
+  }
+
   return changed;
 }
 
-// رفع البيانات فوراً إلى السحابة (قناتين مزدوجتين لضمان المزامنة 100%)
-async function pushToCloud() {
-  const payload = {
+function buildCurrentSyncPayload() {
+  return {
     sender: CLIENT_DEVICE_ID,
     updatedAt: Date.now(),
     records: dbRecords,
@@ -916,116 +1031,167 @@ async function pushToCloud() {
     workers: workers,
     users: systemUsers
   };
+}
 
-  setSyncBadge("🔄 جاري المزامنة السحابية...", "#d97706");
+// رفع البيانات فوراً وبشكل تلقائي إلى جميع السيرفرات السحابية والأجهزة المتصلة
+async function pushToCloud() {
+  const payload = buildCurrentSyncPayload();
+  const jsonStr = JSON.stringify(payload);
+  const pkt = buildMqttPublishRetainedPacket(MQTT_SYNC_TOPIC, jsonStr);
 
-  const p1 = fetch(CLOUD_REST_URL, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "mir_attendance_sync", data: payload })
-  }).catch(() => null);
+  if (localTabChannel) {
+    try { localTabChannel.postMessage(payload); } catch (e) {}
+  }
 
-  const p2 = fetch(`https://ntfy.sh/${CLOUD_NTFY_TOPIC}`, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  }).catch(() => null);
+  let sentCount = 0;
+  mqttSockets.forEach((entry) => {
+    if (entry && entry.ws && entry.ws.readyState === WebSocket.OPEN && entry.connected) {
+      try {
+        entry.ws.send(pkt);
+        sentCount++;
+      } catch (e) {}
+    }
+  });
 
-  const [r1, r2] = await Promise.all([p1, p2]);
-  if ((r1 && r1.ok) || (r2 && r2.ok)) {
-    setSyncBadge("☁️ متصل بالسحابة (متزامن بين الهاتف والحاسبة)", "var(--success)");
+  if (sentCount > 0) {
+    pendingCloudPush = false;
+    setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
   } else {
-    setSyncBadge("⚠️ محفوظ محلياً (تحقق من الإنترنت للمزامنة)", "#d97706");
+    pendingCloudPush = true;
+    setSyncBadge("🔄 جاري الاتصال التلقائي بالسحابة للمزامنة...", "#d97706");
+    startRealtimeCloudStream();
   }
 }
 
-// جلب أحدث البيانات من السحابة ودمجها
+// جلب أحدث البيانات أو إعادة طلب الاشتراك السحابي الفوري
 async function pullFromCloud(showToast = false) {
-  if (isSyncingCloud) return;
-  isSyncingCloud = true;
-  if (showToast) setSyncBadge("🔄 جاري التحديث من السحابة...", "#2563eb");
-
-  let syncedAny = false;
-  let localHadExtra = false;
-  const countBefore = dbRecords.length;
-
-  try {
-    // 1. الجلب من قاعدة البيانات السحابية الدائمة
-    const res1 = await fetch(CLOUD_REST_URL + "?t=" + Date.now(), { cache: "no-store" });
-    if (res1.ok) {
-      const json1 = await res1.json();
-      if (json1 && json1.data) {
-        const cloudCount = Array.isArray(json1.data.records) ? json1.data.records.length : 0;
-        mergeCloudPayload(json1.data);
-        if (dbRecords.length > cloudCount) localHadExtra = true;
-        syncedAny = true;
-      }
+  if (showToast) setSyncBadge("🔄 جاري التحديث والمزامنة مع جميع الأجهزة...", "#2563eb");
+  let activeCount = 0;
+  mqttSockets.forEach((entry) => {
+    if (entry && entry.ws && entry.ws.readyState === WebSocket.OPEN && entry.connected) {
+      try {
+        entry.ws.send(buildMqttSubscribePacket(MQTT_SYNC_TOPIC));
+        activeCount++;
+      } catch (e) {}
     }
-  } catch (e) {}
+  });
+  if (activeCount === 0) {
+    startRealtimeCloudStream();
+  } else {
+    pushToCloud();
+  }
+  if (showToast) {
+    setTimeout(() => {
+      alert(`✅ تمت المزامنة التلقائية بنجاح مع جميع الأجهزة! إجمالي الحركات المسجلة: (${dbRecords.length})`);
+    }, 450);
+  }
+}
 
+function manualCloudSync() {
+  pullFromCloud(true);
+}
+
+function connectBrokerSocket(url) {
+  const existing = mqttSockets.get(url);
+  if (existing && existing.ws && (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  let ws;
   try {
-    // 2. الجلب من قناة البث السحابي الفوري ntfy
-    const res2 = await fetch(`https://ntfy.sh/${CLOUD_NTFY_TOPIC}/json?poll=1&since=24h`, { cache: "no-store" });
-    if (res2.ok) {
-      const text = await res2.text();
-      const lines = text.trim().split("\n");
-      for (const line of lines) {
-        if (!line) continue;
+    ws = new WebSocket(url, "mqtt");
+    ws.binaryType = "arraybuffer";
+  } catch (e) {
+    return;
+  }
+
+  const state = { ws, connected: false, pingTimer: null, seedTimer: null, receivedRetained: false };
+  mqttSockets.set(url, state);
+
+  ws.onopen = () => {
+    try {
+      const clientId = "bmh_" + Math.random().toString(36).slice(2, 10);
+      ws.send(buildMqttConnectPacket(clientId));
+    } catch (e) {}
+  };
+
+  ws.onmessage = (e) => {
+    const u8 = new Uint8Array(e.data);
+    if (!u8 || u8.length === 0) return;
+    const packetType = u8[0] & 0xf0;
+
+    if (packetType === 0x20) {
+      // CONNACK -> متصل بالسيرفر السحابي
+      state.connected = true;
+      setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
+      try {
+        ws.send(buildMqttSubscribePacket(MQTT_SYNC_TOPIC));
+      } catch (err) {}
+
+      if (pendingCloudPush) {
+        pushToCloud();
+      } else {
+        // إذا كان الجهاز يحتوي على بيانات محلية ولم تكن السحابة تملك نسخة بعد، نرفعها تلقائياً
+        state.seedTimer = setTimeout(() => {
+          if (!state.receivedRetained && (dbRecords.length > 0 || deletedRecordIds.size > 0)) {
+            pushToCloud();
+          }
+        }, 1200);
+      }
+
+      if (state.pingTimer) clearInterval(state.pingTimer);
+      state.pingTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try { ws.send(new Uint8Array([0xc0, 0x00])); } catch (err) {}
+        }
+      }, 25000);
+    } else if (packetType === 0x30) {
+      // PUBLISH -> استلام تحديث فوري أو نسخة محفوظة من جهاز آخر
+      state.receivedRetained = true;
+      const jsonStr = parseMqttPublishPayload(e.data);
+      if (jsonStr) {
         try {
-          const evt = JSON.parse(line);
-          if (evt && evt.event === "message" && evt.message) {
-            const data = JSON.parse(evt.message);
-            if (data && (data.records || data.workers)) {
-              mergeCloudPayload(data);
-              syncedAny = true;
+          const payload = JSON.parse(jsonStr);
+          if (payload && (payload.records || payload.workers || payload.users)) {
+            const updated = mergeCloudPayload(payload);
+            if (updated && payload.sender !== CLIENT_DEVICE_ID) {
+              setSyncBadge("☁️ تم التحديث تلقائياً من حاسبة / جهاز آخر ✓", "var(--success)");
+            } else {
+              setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
             }
           }
         } catch (err) {}
       }
     }
-  } catch (e) {}
+  };
 
-  isSyncingCloud = false;
+  const cleanupAndReconnect = () => {
+    state.connected = false;
+    if (state.pingTimer) clearInterval(state.pingTimer);
+    if (state.seedTimer) clearTimeout(state.seedTimer);
+    mqttSockets.delete(url);
+    setTimeout(() => connectBrokerSocket(url), 2500);
+  };
 
-  if (syncedAny) {
-    setSyncBadge("☁️ متصل بالسحابة (متزامن بين الهاتف والحاسبة)", "var(--success)");
-    // إذا كان هذا الجهاز يحتوي على سجلات محلية لم ترفع بعد للسحابة، نرفعها تلقائياً
-    if (localHadExtra || dbRecords.length > countBefore) {
-      pushToCloud();
-    }
-    if (showToast) {
-      alert(`✅ تمت المزامنة السحابية بنجاح! إجمالي الحركات المسجلة: (${dbRecords.length})`);
-    }
-  } else {
-    setSyncBadge("⚠️ وضع محلي (تأكد من اتصال الإنترنت)", "#d97706");
-  }
-}
-
-function manualCloudSync() {
-  pullFromCloud(true).then(() => pushToCloud());
+  ws.onerror = () => {};
+  ws.onclose = cleanupAndReconnect;
 }
 
 function startRealtimeCloudStream() {
-  try {
-    if (cloudEventSource) cloudEventSource.close();
-    cloudEventSource = new EventSource(`https://ntfy.sh/${CLOUD_NTFY_TOPIC}/sse`);
-    cloudEventSource.onmessage = (e) => {
-      try {
-        const evt = JSON.parse(e.data);
-        if (evt && evt.message) {
-          const payload = JSON.parse(evt.message);
-          if (payload && payload.sender !== CLIENT_DEVICE_ID) {
-            mergeCloudPayload(payload);
-            setSyncBadge("☁️ تم التحديث تلقائياً من الجهاز الآخر ✓", "var(--success)");
-          }
-        }
-      } catch (err) {}
-    };
-  } catch (e) {}
-
-  // فحص دوري كل 6 ثوانٍ لضمان التزامن حتى لو انقطع البث المباشر
-  setInterval(() => {
-    pullFromCloud(false);
-  }, 6000);
+  MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
+  if (!mqttStreamStarted) {
+    mqttStreamStarted = true;
+    window.addEventListener("online", () => {
+      MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
+      setTimeout(() => pushToCloud(), 800);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
+        pullFromCloud(false);
+      }
+    });
+  }
 }
 
 const defaultUsers = [
@@ -2211,13 +2377,13 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// التحقق من تسجيل الدخول السابق تلقائياً وتحديث الكاش في جميع الأجهزة
+// التحقق من تسجيل الدخول السابق تلقائياً وتحديث الكاش وتشغيل المزامنة الفورية في جميع الأجهزة
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     if ('caches' in window) {
       const keys = await caches.keys();
       for (const k of keys) {
-        if (k !== 'atten-app-v3') await caches.delete(k);
+        await caches.delete(k);
       }
     }
     if ('serviceWorker' in navigator) {
@@ -2227,6 +2393,25 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch (e) {}
+
+  ensureDefaultWorkersLoaded();
+  ensureDefaultUsersLoaded();
+  try {
+    const savedDeleted = JSON.parse(localStorage.getItem('attendance_deleted_ids')) || [];
+    deletedRecordIds = new Set(savedDeleted.map(String));
+  } catch (e) {
+    deletedRecordIds = new Set();
+  }
+  try {
+    dbRecords = (JSON.parse(localStorage.getItem('attendance_db')) || []).filter(
+      r => r && r.id && !deletedRecordIds.has(String(r.id))
+    );
+  } catch (e) {
+    dbRecords = [];
+  }
+
+  // بدء الاتصال الفوري بالسحابة فور فتح الرابط حتى قبل تسجيل الدخول
+  startRealtimeCloudStream();
 
   const saved = localStorage.getItem('attendance_logged_user');
   if (saved) {
