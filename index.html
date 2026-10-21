@@ -790,10 +790,11 @@ let dbRecords = [];
 let deletedRecordIds = new Set();
 let selectedWorkerNames = new Set();
 
-// إعدادات المزامنة السحابية الفورية التلقائية بين جميع الحسابات والحاسبات والهواتف (Dual-Broker MQTT over WSS Retained Sync)
+// إعدادات المزامنة السحابية الفورية التلقائية بين جميع الحسابات والحاسبات والهواتف (Triple-Broker 24/7 MQTT over WSS Retained Sync)
 const MQTT_BROKERS = [
   "wss://broker.emqx.io:8084/mqtt",
-  "wss://broker.hivemq.com:8884/mqtt"
+  "wss://broker.hivemq.com:8884/mqtt",
+  "wss://test.mosquitto.org:8081/mqtt"
 ];
 const MQTT_SYNC_TOPIC = "bmh_hotel_attendance_2026_v3/state";
 const CLIENT_DEVICE_ID = "dev_" + Math.random().toString(36).slice(2, 10);
@@ -1118,49 +1119,68 @@ function connectBrokerSocket(url) {
   ws.onmessage = (e) => {
     const u8 = new Uint8Array(e.data);
     if (!u8 || u8.length === 0) return;
-    const packetType = u8[0] & 0xf0;
 
-    if (packetType === 0x20) {
-      // CONNACK -> متصل بالسيرفر السحابي
-      state.connected = true;
-      setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
-      try {
-        ws.send(buildMqttSubscribePacket(MQTT_SYNC_TOPIC));
-      } catch (err) {}
+    let offset = 0;
+    while (offset < u8.length) {
+      const headerByte = u8[offset];
+      const packetType = headerByte & 0xf0;
+      let idx = offset + 1;
+      let mult = 1, remLen = 0, b;
+      let valid = true;
+      do {
+        if (idx >= u8.length) { valid = false; break; }
+        b = u8[idx++];
+        remLen += (b & 127) * mult;
+        mult *= 128;
+      } while ((b & 128) !== 0);
+      if (!valid) break;
+      const packetEnd = idx + remLen;
+      if (packetEnd > u8.length) break;
+      const packetSlice = u8.slice(offset, packetEnd);
+      offset = packetEnd;
 
-      if (pendingCloudPush) {
-        pushToCloud();
-      } else {
-        // إذا كان الجهاز يحتوي على بيانات محلية ولم تكن السحابة تملك نسخة بعد، نرفعها تلقائياً
-        state.seedTimer = setTimeout(() => {
-          if (!state.receivedRetained && (dbRecords.length > 0 || deletedRecordIds.size > 0)) {
-            pushToCloud();
-          }
-        }, 1200);
-      }
-
-      if (state.pingTimer) clearInterval(state.pingTimer);
-      state.pingTimer = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          try { ws.send(new Uint8Array([0xc0, 0x00])); } catch (err) {}
-        }
-      }, 25000);
-    } else if (packetType === 0x30) {
-      // PUBLISH -> استلام تحديث فوري أو نسخة محفوظة من جهاز آخر
-      state.receivedRetained = true;
-      const jsonStr = parseMqttPublishPayload(e.data);
-      if (jsonStr) {
+      if (packetType === 0x20) {
+        // CONNACK -> متصل بالسيرفر السحابي
+        state.connected = true;
+        setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
         try {
-          const payload = JSON.parse(jsonStr);
-          if (payload && (payload.records || payload.workers || payload.users)) {
-            const updated = mergeCloudPayload(payload);
-            if (updated && payload.sender !== CLIENT_DEVICE_ID) {
-              setSyncBadge("☁️ تم التحديث تلقائياً من حاسبة / جهاز آخر ✓", "var(--success)");
-            } else {
-              setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
-            }
-          }
+          ws.send(buildMqttSubscribePacket(MQTT_SYNC_TOPIC));
         } catch (err) {}
+
+        if (pendingCloudPush) {
+          pushToCloud();
+        } else {
+          // إذا كان الجهاز يحتوي على بيانات محلية ولم تكن السحابة تملك نسخة بعد، نرفعها تلقائياً
+          state.seedTimer = setTimeout(() => {
+            if (!state.receivedRetained && (dbRecords.length > 0 || deletedRecordIds.size > 0)) {
+              pushToCloud();
+            }
+          }, 1200);
+        }
+
+        if (state.pingTimer) clearInterval(state.pingTimer);
+        state.pingTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try { ws.send(new Uint8Array([0xc0, 0x00])); } catch (err) {}
+          }
+        }, 25000);
+      } else if (packetType === 0x30) {
+        // PUBLISH -> استلام تحديث فوري أو نسخة محفوظة من جهاز آخر
+        state.receivedRetained = true;
+        const jsonStr = parseMqttPublishPayload(packetSlice);
+        if (jsonStr) {
+          try {
+            const payload = JSON.parse(jsonStr);
+            if (payload && (payload.records || payload.workers || payload.users)) {
+              const updated = mergeCloudPayload(payload);
+              if (updated && payload.sender !== CLIENT_DEVICE_ID) {
+                setSyncBadge("☁️ تم التحديث تلقائياً من حاسبة / جهاز آخر ✓", "var(--success)");
+              } else {
+                setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
+              }
+            }
+          } catch (err) {}
+        }
       }
     }
   };
@@ -1181,6 +1201,10 @@ function startRealtimeCloudStream() {
   MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
   if (!mqttStreamStarted) {
     mqttStreamStarted = true;
+    // فحص مستمر على مدار 24 ساعة لضمان بقاء السيرفرات متصلة طوال الوقت وإعادة الاتصال فوراً عند أي انقطاع
+    setInterval(() => {
+      MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
+    }, 30000);
     window.addEventListener("online", () => {
       MQTT_BROKERS.forEach(url => connectBrokerSocket(url));
       setTimeout(() => pushToCloud(), 800);
