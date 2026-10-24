@@ -301,9 +301,66 @@ body {
   margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;
   font-size: 13px;
 }
+
+.record-card.selected-for-print {
+  background: #eff6ff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+}
+
+/* حاوية الطباعة المباشرة المتعددة الصفحات A4 */
+#printBatchContainer {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm;
+  }
+  body > *:not(#printBatchContainer) {
+    display: none !important;
+  }
+  #printBatchContainer {
+    display: block !important;
+    width: 210mm;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print-page-sheet {
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .print-page-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .print-page-sheet img {
+    width: 210mm;
+    height: 297mm;
+    object-fit: contain;
+    display: block;
+  }
+}
 </style>
 </head>
 <body>
+
+<!-- حاوية صفحات الطباعة الجماعية والفردية A4 -->
+<div id="printBatchContainer"></div>
 
 <!-- شاشة تسجيل الدخول -->
 <div id="loginScreen" class="login-overlay">
@@ -470,6 +527,7 @@ body {
 
         <div style="display:flex; flex-direction:column; gap:8px;">
           <button id="btn-save" class="btn btn-primary" onclick="saveData(false)">💾 حفظ وتسجيل الحركة</button>
+          <button id="btn-save-print" class="btn btn-primary" onclick="saveData('print')" style="background:#1e40af;">🖨️ حفظ وطباعة المحدد فوراً (فردي أو مجموعة)</button>
           <button id="btn-save-pdf" class="btn btn-success" onclick="saveData(true)" style="background:#0f766e;">📄 حفظ وتصدير استمارة PDF فوراً</button>
         </div>
       </div>
@@ -481,18 +539,32 @@ body {
         <div class="card-header" style="flex-wrap:wrap; gap:8px;">
           <div class="card-title">📋 السجلات والعمليات</div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="printAllFilteredRecords()" style="background:#1e40af;">🖨️ طباعة الكل</button>
             <button class="btn btn-primary btn-sm" onclick="exportAllFilteredToPdf()" style="background:#0f766e;">📄 تصدير الكل PDF</button>
             <button class="btn btn-success btn-sm" onclick="exportToExcel()">📥 تصدير Excel</button>
           </div>
         </div>
 
         <!-- تصفية السجلات -->
-        <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid var(--border); margin-bottom:14px;">
+        <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px;">
           <div class="form-row" style="margin-bottom:8px;">
             <div><label class="input-label">من تاريخ</label><input type="date" id="filterFrom" class="app-input" onchange="renderRecords()"></div>
             <div><label class="input-label">إلى تاريخ</label><input type="date" id="filterTo" class="app-input" onchange="renderRecords()"></div>
           </div>
           <button class="btn btn-light btn-sm" style="width:100%;" onclick="clearFilters()">إلغاء التصفية وإظهار الكل</button>
+        </div>
+
+        <!-- شريط اختيار وطباعة مجموعة سجلات سوة -->
+        <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:10px 12px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-light btn-sm" style="background:#fff; border:1px solid #cbd5e1; height:32px; font-size:12px;" onclick="toggleSelectAllRecords(true)">☑️ تحديد الكل</button>
+            <button type="button" class="btn btn-light btn-sm" style="background:#fff; border:1px solid #cbd5e1; height:32px; font-size:12px;" onclick="toggleSelectAllRecords(false)">إلغاء التحديد</button>
+            <span id="selectedRecordsCountBadge" style="font-size:12px; font-weight:800; color:#1e40af; background:#dbeafe; padding:4px 10px; border-radius:8px;">0 محدد للطباعة</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary btn-sm" style="background:#1d4ed8; height:34px; font-weight:800;" onclick="printSelectedRecordsBatch()">🖨️ طباعة المحدد سوة</button>
+            <button type="button" class="btn btn-success btn-sm" style="background:#0f766e; height:34px; font-weight:800;" onclick="exportSelectedRecordsToPdf()">📄 PDF للمحدد</button>
+          </div>
         </div>
 
         <!-- قائمة كروت السجلات -->
@@ -1780,8 +1852,21 @@ function deleteUserAccount(username) {
   pushToCloud();
 }
 
-// حفظ حركة جديدة
-function saveData(andExportPdf = false) {
+let selectedRecordIds = new Set();
+
+function returnToMainPageAfterPrint() {
+  closePdfFormModal();
+  const printContainer = document.getElementById('printBatchContainer');
+  if (printContainer) printContainer.innerHTML = '';
+  selectedRecordIds.clear();
+  updateSelectedRecordsBadge();
+  renderRecords();
+  switchNavTab('entry');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// حفظ حركة جديدة (وضع الحفظ العادي، أو الحفظ والطباعة الفورية، أو الحفظ وتصدير PDF)
+async function saveData(actionMode = false) {
   const btn = document.getElementById('btn-save');
   const checkedNames = Array.from(selectedWorkerNames);
 
@@ -1846,11 +1931,13 @@ function saveData(andExportPdf = false) {
   updateSelectedCount();
   closeWorkerSlide();
 
-  if (andExportPdf && newlyAddedRecords.length > 0) {
+  if (actionMode === 'print' && newlyAddedRecords.length > 0) {
+    await printRecordsListToA4(newlyAddedRecords);
+  } else if (actionMode === true && newlyAddedRecords.length > 0) {
     if (newlyAddedRecords.length === 1) {
       openPdfFormModal(newlyAddedRecords[0].id, true);
     } else {
-      exportRecordsListToPdf(newlyAddedRecords, `استمارات_إجازة_${dateFrom}.pdf`);
+      await exportRecordsListToPdf(newlyAddedRecords, `استمارات_إجازة_${dateFrom}.pdf`);
       switchNavTab('records');
     }
   } else {
@@ -1859,21 +1946,55 @@ function saveData(andExportPdf = false) {
   }
 }
 
-// عرض بطاقات السجلات
-function renderRecords() {
-  const container = document.getElementById('recordsCardsList');
-  if (!container) return;
-
+function getFilteredRecordsList() {
   const from = document.getElementById('filterFrom')?.value;
   const to = document.getElementById('filterTo')?.value;
-
-  const filtered = dbRecords.filter(r => {
+  return dbRecords.filter(r => {
     let d = r.dateFrom || r.date;
     if (!d) return false;
     if (from && d < from) return false;
     if (to && d > to) return false;
     return true;
   });
+}
+
+function updateSelectedRecordsBadge() {
+  const badge = document.getElementById('selectedRecordsCountBadge');
+  if (badge) {
+    badge.textContent = `${selectedRecordIds.size} محدد للطباعة`;
+  }
+}
+
+function toggleRecordSelection(recordId, cbEl) {
+  const sId = String(recordId);
+  if (cbEl.checked) {
+    selectedRecordIds.add(sId);
+    cbEl.closest('.record-card')?.classList.add('selected-for-print');
+  } else {
+    selectedRecordIds.delete(sId);
+    cbEl.closest('.record-card')?.classList.remove('selected-for-print');
+  }
+  updateSelectedRecordsBadge();
+}
+
+function toggleSelectAllRecords(selectAll) {
+  const filtered = getFilteredRecordsList();
+  if (selectAll) {
+    filtered.forEach(r => selectedRecordIds.add(String(r.id)));
+  } else {
+    selectedRecordIds.clear();
+  }
+  updateSelectedRecordsBadge();
+  renderRecords();
+}
+
+// عرض بطاقات السجلات مع إمكانية اختيار أكثر من سجل للطباعة سوة
+function renderRecords() {
+  const container = document.getElementById('recordsCardsList');
+  if (!container) return;
+
+  const filtered = getFilteredRecordsList();
+  updateSelectedRecordsBadge();
 
   if (filtered.length === 0) {
     container.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:30px 10px;">لا توجد حركات مسجلة حالياً.</p>';
@@ -1887,13 +2008,16 @@ function renderRecords() {
     else if (r.type === 'زمنية') badgeClass = 'badge-warning';
     else if (r.type === 'إجازة تعويضية') badgeClass = 'badge-info';
 
+    const isSelected = selectedRecordIds.has(String(r.id));
+
     return `
-      <div class="record-card type-${r.type.replace(/\s+/g, '-')}">
+      <div class="record-card type-${r.type.replace(/\s+/g, '-')} ${isSelected ? 'selected-for-print' : ''}">
         <div class="record-top">
-          <div style="display:flex; align-items:center; gap:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" class="record-select-cb" style="width:19px; height:19px; accent-color:var(--primary); cursor:pointer;" ${isSelected ? 'checked' : ''} onchange="toggleRecordSelection('${r.id}', this)">
             <div class="record-worker">👤 ${r.worker}</div>
             ${r.role ? `<span class="${getRoleBadgeClass(r.role)}">${r.role}</span>` : ''}
-          </div>
+          </label>
           <span class="record-badge ${badgeClass}">${r.type} (${r.type==='زمنية' ? 'ساعات' : r.days + ' يوم'})</span>
         </div>
         <div class="record-dates" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
@@ -1901,9 +2025,10 @@ function renderRecords() {
           <span style="font-size:11px; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px; font-weight:700;">✍️ بواسطة: ${r.addedBy || 'المدير العام'}</span>
         </div>
         ${r.notes ? `<div class="record-notes">📝 ${r.notes}</div>` : ''}
-        <div class="record-actions" style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير استمارة PDF</button>
-          <button class="btn btn-light btn-sm" onclick="openPdfFormModal('${r.id}', false)" style="border:1px solid #cbd5e1; color:#1e293b;">👁️ معاينة / طباعة</button>
+        <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
+          <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
+          <button class="btn btn-light btn-sm" onclick="openPdfFormModal('${r.id}', false)" style="border:1px solid #cbd5e1; color:#1e293b;">👁️ معاينة</button>
           ${isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" style="background:#fee2e2; color:#991b1b;">🗑️ حذف</button>` : ''}
         </div>
       </div>
@@ -1915,6 +2040,7 @@ function deleteRecord(id) {
   if (!isAdmin()) return alert('عذراً، حذف السجلات من صلاحية المدير فقط!');
   if (!confirm('هل تريد بالتأكيد حذف هذا السجل؟')) return;
   deletedRecordIds.add(String(id));
+  selectedRecordIds.delete(String(id));
   dbRecords = dbRecords.filter(r => String(r.id) !== String(id));
   localStorage.setItem('attendance_deleted_ids', JSON.stringify(Array.from(deletedRecordIds)));
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
@@ -2331,29 +2457,96 @@ async function downloadCurrentFormPdf() {
   triggerPdfDownload(pdfBlob, `استمارة_إجازة_${safeName}_${safeDate}.pdf`);
 }
 
+async function executeInPagePrintWithDataUrls(dataUrls) {
+  if (!dataUrls || dataUrls.length === 0) return;
+  const printContainer = document.getElementById('printBatchContainer');
+  if (!printContainer) return;
+
+  printContainer.innerHTML = dataUrls.map(url => `
+    <div class="print-page-sheet">
+      <img src="${url}" alt="Leave Form">
+    </div>
+  `).join('');
+
+  const imgs = Array.from(printContainer.querySelectorAll('img'));
+  await Promise.all(imgs.map(img => new Promise(resolve => {
+    if (img.complete) return resolve();
+    img.onload = resolve;
+    img.onerror = resolve;
+  })));
+
+  let returned = false;
+  const finishAndReturnHome = () => {
+    if (returned) return;
+    returned = true;
+    window.onafterprint = null;
+    returnToMainPageAfterPrint();
+  };
+
+  window.onafterprint = finishAndReturnHome;
+  await new Promise(r => setTimeout(r, 120));
+  window.print();
+  setTimeout(finishAndReturnHome, 300);
+}
+
+// طباعة قائمة سجلات (سجل واحد أو مجموعة سجلات سوة) على ورق A4 ثم الرجوع تلقائياً للصفحة الرئيسية
+async function printRecordsListToA4(recordsList, customOpts = {}) {
+  if (!recordsList || recordsList.length === 0) {
+    return alert('يرجى تحديد حركة واحدة على الأقل للطباعة!');
+  }
+  const offCanvas = document.createElement('canvas');
+  const dataUrls = [];
+  const dept = customOpts.dept || localStorage.getItem('default_pdf_dept') || 'BMH-HOTEL';
+  const altEmp = customOpts.altEmp || '';
+  const managerName = customOpts.managerName || localStorage.getItem('default_pdf_manager') || '';
+
+  for (const rec of recordsList) {
+    await renderRecordOnFormCanvas(offCanvas, rec, { dept, altEmp, managerName });
+    dataUrls.push(offCanvas.toDataURL('image/jpeg', 0.96));
+  }
+
+  await executeInPagePrintWithDataUrls(dataUrls);
+}
+
 async function printCurrentFormPdf() {
   await refreshPdfPreviewCanvas();
   const canvas = document.getElementById('officialFormCanvas');
   const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
-  const win = window.open('', '_blank');
-  if (!win) return alert('يرجى السماح بالنوافذ المنبثقة للطباعة أو استخدم زر تنزيل PDF جاهز!');
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>طباعة استمارة إجازة / غياب</title>
-      <style>
-        @page { size: A4 portrait; margin: 0; }
-        body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background: #fff; }
-        img { width: 210mm; height: 297mm; object-fit: contain; display: block; }
-      </style>
-    </head>
-    <body>
-      <img src="${dataUrl}" onload="setTimeout(() => { window.print(); }, 250);">
-    </body>
-    </html>
-  `);
-  win.document.close();
+  await executeInPagePrintWithDataUrls([dataUrl]);
+}
+
+async function printSingleRecordNow(recordId) {
+  const rec = dbRecords.find(r => String(r.id) === String(recordId));
+  if (!rec) return alert('لم يتم العثور على السجل!');
+  await printRecordsListToA4([rec]);
+}
+
+async function printSelectedRecordsBatch() {
+  if (selectedRecordIds.size === 0) {
+    return alert('يرجى وضع علامة (☑️) على حركة واحدة أو أكثر من القائمة لطباعتها سوة!');
+  }
+  const selectedList = dbRecords.filter(r => selectedRecordIds.has(String(r.id)));
+  if (selectedList.length === 0) {
+    return alert('لم يتم العثور على السجلات المحددة!');
+  }
+  await printRecordsListToA4(selectedList);
+}
+
+async function printAllFilteredRecords() {
+  const filtered = getFilteredRecordsList();
+  if (filtered.length === 0) {
+    return alert('لا توجد حركات مطابقة لطباعتها!');
+  }
+  await printRecordsListToA4(filtered);
+}
+
+async function exportSelectedRecordsToPdf() {
+  if (selectedRecordIds.size === 0) {
+    return alert('يرجى وضع علامة (☑️) على حركة واحدة أو أكثر لتصديرها كملف PDF واحد!');
+  }
+  const selectedList = dbRecords.filter(r => selectedRecordIds.has(String(r.id)));
+  if (selectedList.length === 0) return;
+  await exportRecordsListToPdf(selectedList, `استمارات_محددة_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 // تصدير مجموعة سجلات كملف PDF واحد متعدد الصفحات (كل حركة في صفحة استمارة رسمية مستقلة)
@@ -2375,15 +2568,7 @@ async function exportRecordsListToPdf(recordsList, filename) {
 }
 
 async function exportAllFilteredToPdf() {
-  const from = document.getElementById('filterFrom')?.value;
-  const to = document.getElementById('filterTo')?.value;
-  const filtered = dbRecords.filter(r => {
-    let d = r.dateFrom || r.date;
-    if (!d) return false;
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
-  });
+  const filtered = getFilteredRecordsList();
   if (filtered.length === 0) {
     return alert('لا توجد حركات مطابقة لتصديرها إلى PDF!');
   }
