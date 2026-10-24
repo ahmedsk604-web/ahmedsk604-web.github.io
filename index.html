@@ -561,6 +561,7 @@ body {
             <span id="selectedRecordsCountBadge" style="font-size:12px; font-weight:800; color:#1e40af; background:#dbeafe; padding:4px 10px; border-radius:8px;">0 محدد للطباعة</span>
           </div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button id="btnBatchApprove" type="button" class="btn btn-sm" style="background:#16a34a; color:#fff; height:34px; font-weight:800; display:none;" onclick="approveSelectedRecordsBatch()">✍️ اعتماد وموافقة المحدد</button>
             <button type="button" class="btn btn-primary btn-sm" style="background:#1d4ed8; height:34px; font-weight:800;" onclick="printSelectedRecordsBatch()">🖨️ طباعة</button>
             <button type="button" class="btn btn-success btn-sm" style="background:#0f766e; height:34px; font-weight:800;" onclick="exportSelectedRecordsToPdf()">📄 Pdf</button>
           </div>
@@ -665,6 +666,7 @@ body {
       <label class="input-label">الصلاحية</label>
       <select id="accountRole" class="app-select">
         <option value="supervisor">👷 مراقب عمل (تسجيل غياب وإجازات وتصدير PDF فقط)</option>
+        <option value="manager">✍️ مسؤول الموافقة والاعتماد (الموافقة والتوقيع على الاستمارة)</option>
         <option value="admin">👑 مدير النظام (صلاحية كاملة مع الحذف والإدارة)</option>
       </select>
     </div>
@@ -1055,14 +1057,16 @@ function mergeCloudPayload(payload) {
     defaultUsers.forEach(u => uMap.set(u.username, { ...u }));
     systemUsers.forEach(u => {
       if (u && u.username && u.username !== "لينا") {
-        const firstOnly = (u.displayName || u.username).trim().split(/\s+/)[0];
-        uMap.set(u.username, { ...u, displayName: u.username === 'admin' ? 'admin' : firstOnly });
+        const firstOnly = u.username === "admin" ? "admin" : (u.displayName || u.username).trim().split(/\s+/)[0];
+        const fullDisp = (u.username === "بلال" || u.displayName === "بلال طلال") ? "بلال طلال" : firstOnly;
+        uMap.set(u.username, { ...u, displayName: fullDisp });
       }
     });
     payload.users.forEach(u => {
       if (u && u.username && u.username !== "لينا") {
-        const firstOnly = (u.displayName || u.username).trim().split(/\s+/)[0];
-        const nextObj = { ...u, displayName: u.username === 'admin' ? 'admin' : firstOnly };
+        const firstOnly = u.username === "admin" ? "admin" : (u.displayName || u.username).trim().split(/\s+/)[0];
+        const fullDisp = (u.username === "بلال" || u.displayName === "بلال طلال") ? "بلال طلال" : firstOnly;
+        const nextObj = { ...u, displayName: fullDisp };
         const prevObj = uMap.get(u.username);
         if (!prevObj || JSON.stringify(prevObj) !== JSON.stringify(nextObj)) {
           uMap.set(u.username, nextObj);
@@ -1291,6 +1295,7 @@ function startRealtimeCloudStream() {
 
 const defaultUsers = [
   { username: "admin", password: "bmh123", role: "admin", displayName: "admin" },
+  { username: "بلال", password: "0770", role: "manager", displayName: "بلال طلال" },
   { username: "حبيب", password: "123", role: "supervisor", displayName: "حبيب" },
   { username: "باسم", password: "123", role: "supervisor", displayName: "باسم" },
   { username: "عمر", password: "123", role: "supervisor", displayName: "عمر" }
@@ -1298,6 +1303,10 @@ const defaultUsers = [
 
 let systemUsers = [...defaultUsers];
 let currentUser = { username: "admin", role: "admin", displayName: "admin" };
+
+function isApprovalManager() {
+  return currentUser && (currentUser.username === 'بلال' || currentUser.role === 'manager' || currentUser.role === 'admin');
+}
 
 function isAdmin() {
   return currentUser && currentUser.role === "admin";
@@ -1313,11 +1322,12 @@ function ensureDefaultUsersLoaded() {
       stored.forEach(u => {
         if (u && u.username && u.username !== "لينا") {
           const firstOnly = u.username === "admin" ? "admin" : (u.displayName || u.username).trim().split(/\s+/)[0];
+          const fullDisp = (u.username === "بلال" || u.displayName === "بلال طلال") ? "بلال طلال" : firstOnly;
           uMap.set(u.username, {
             username: u.username,
             password: u.password || "123",
-            role: u.role || "supervisor",
-            displayName: firstOnly
+            role: u.role || (u.username === "admin" ? "admin" : (u.username === "بلال" ? "manager" : "supervisor")),
+            displayName: fullDisp
           });
         }
       });
@@ -1469,8 +1479,15 @@ function logout() {
 function applyUserPermissionsUI() {
   const badge = document.getElementById('currentUserBadge');
   if (badge && currentUser) {
-    const icon = isAdmin() ? '👑' : '👷';
-    const roleLabel = isAdmin() ? 'مدير' : 'مراقب عمل';
+    let icon = '👷';
+    let roleLabel = 'مراقب عمل';
+    if (currentUser.role === 'admin') {
+      icon = '👑';
+      roleLabel = 'مدير النظام';
+    } else if (currentUser.username === 'بلال' || currentUser.role === 'manager') {
+      icon = '✍️';
+      roleLabel = 'المسؤول المعتمد';
+    }
     badge.textContent = `${icon} ${currentUser.displayName || currentUser.username} (${roleLabel})`;
   }
   const btnAddWorkerTop = document.getElementById('btnAddWorkerTop');
@@ -1478,6 +1495,9 @@ function applyUserPermissionsUI() {
 
   const navWorkersBtn = document.getElementById('navWorkersBtn');
   if (navWorkersBtn) navWorkersBtn.style.display = isAdmin() ? 'flex' : 'none';
+
+  const btnBatchApprove = document.getElementById('btnBatchApprove');
+  if (btnBatchApprove) btnBatchApprove.style.display = isApprovalManager() ? 'inline-flex' : 'none';
 }
 
 function initApp() {
@@ -1772,13 +1792,31 @@ function renderUsersDirectory() {
 
   container.innerHTML = systemUsers.map(u => {
     const isUAdmin = u.role === 'admin';
+    const isUManager = u.role === 'manager' || u.username === 'بلال';
+    let roleText = 'مراقب عمل';
+    let roleBg = '#e0e7ff';
+    let roleColor = '#3730a3';
+    let userIcon = '👷';
+
+    if (isUAdmin) {
+      roleText = 'مدير النظام';
+      roleBg = '#fef3c7';
+      roleColor = '#92400e';
+      userIcon = '👑';
+    } else if (isUManager) {
+      roleText = 'مسؤول الموافقة والاعتماد';
+      roleBg = '#dcfce7';
+      roleColor = '#166534';
+      userIcon = '✍️';
+    }
+
     return `
       <div style="background:#ffffff; border:1px solid #dbeafe; border-radius:12px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
         <div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-weight:800; font-size:14px; color:#0f172a;">${isUAdmin ? '👑' : '👷'} ${u.displayName || u.username}</span>
-            <span style="font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; background:${isUAdmin ? '#fef3c7' : '#e0e7ff'}; color:${isUAdmin ? '#92400e' : '#3730a3'};">
-              ${isUAdmin ? 'مدير النظام' : 'مراقب عمل'}
+            <span style="font-weight:800; font-size:14px; color:#0f172a;">${userIcon} ${u.displayName || u.username}</span>
+            <span style="font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; background:${roleBg}; color:${roleColor};">
+              ${roleText}
             </span>
           </div>
           <div style="font-size:12px; color:#475569; margin-top:4px;">
@@ -1910,7 +1948,10 @@ async function saveData(actionMode = false) {
       dateTo,
       notes: finalNotes, 
       addedBy: addedByUser, 
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      status: 'pending',
+      approvedBy: '',
+      approvedAt: ''
     };
     dbRecords.unshift(newRec);
     newlyAddedRecords.push(newRec);
@@ -2008,6 +2049,7 @@ function renderRecords() {
     else if (r.type === 'إجازة تعويضية') badgeClass = 'badge-info';
 
     const isSelected = selectedRecordIds.has(String(r.id));
+    const isApproved = r.status === 'approved' || !!r.approvedBy;
 
     return `
       <div class="record-card type-${r.type.replace(/\s+/g, '-')} ${isSelected ? 'selected-for-print' : ''}">
@@ -2017,14 +2059,25 @@ function renderRecords() {
             <div class="record-worker">👤 ${r.worker}</div>
             ${r.role ? `<span class="${getRoleBadgeClass(r.role)}">${r.role}</span>` : ''}
           </label>
-          <span class="record-badge ${badgeClass}">${r.type} (${r.type==='زمنية' ? 'ساعات' : r.days + ' يوم'})</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${isApproved ? 
+              `<span style="font-size:11px; font-weight:800; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px;">✓ معتمد (${r.approvedBy || 'بلال طلال'})</span>` : 
+              `<span style="font-size:11px; font-weight:700; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px;">⏳ قيد الانتظار</span>`
+            }
+            <span class="record-badge ${badgeClass}">${r.type} (${r.type==='زمنية' ? 'ساعات' : r.days + ' يوم'})</span>
+          </div>
         </div>
         <div class="record-dates" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
           <span>📅 ${dateStr}</span>
           <span style="font-size:11px; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px; font-weight:700;">✍️ بواسطة: ${r.addedBy || 'المدير العام'}</span>
         </div>
         ${r.notes ? `<div class="record-notes">📝 ${r.notes}</div>` : ''}
-        <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
+        <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; align-items:center;">
+          ${isApprovalManager() ? (
+            !isApproved ? 
+              `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>` :
+              `<button class="btn btn-sm" onclick="unapproveRecord('${r.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700;">↩ إلغاء الاعتماد</button>`
+          ) : ''}
           <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
           <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
           <button class="btn btn-light btn-sm" onclick="openPdfFormModal('${r.id}', false)" style="border:1px solid #cbd5e1; color:#1e293b;">👁️ معاينة</button>
@@ -2046,6 +2099,61 @@ function deleteRecord(id) {
   renderRecords();
   renderSummary();
   pushToCloud();
+}
+
+// اعتماد وموافقة على السجل
+function approveRecord(recordId) {
+  const rec = dbRecords.find(r => String(r.id) === String(recordId));
+  if (!rec) return;
+
+  const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  rec.status = 'approved';
+  rec.approvedBy = approver;
+  rec.approvedAt = todayStr;
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  renderRecords();
+  pushToCloud();
+}
+
+// إلغاء اعتماد السجل
+function unapproveRecord(recordId) {
+  const rec = dbRecords.find(r => String(r.id) === String(recordId));
+  if (!rec) return;
+
+  rec.status = 'pending';
+  rec.approvedBy = '';
+  rec.approvedAt = '';
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  renderRecords();
+  pushToCloud();
+}
+
+// اعتماد جماعي للسجلات المحددة
+function approveSelectedRecordsBatch() {
+  if (selectedRecordIds.size === 0) {
+    return alert('يرجى وضع علامة (☑️) على حركة واحدة أو أكثر لاعتمادها والموافقة عليها!');
+  }
+  const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  let count = 0;
+  dbRecords.forEach(r => {
+    if (selectedRecordIds.has(String(r.id))) {
+      r.status = 'approved';
+      r.approvedBy = approver;
+      r.approvedAt = todayStr;
+      count++;
+    }
+  });
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  renderRecords();
+  pushToCloud();
+  alert(`✅ تم اعتماد والموافقة على (${count}) حركة بنجاح بواسطة ${approver} مع إضافة التوقيع والاسم!`);
 }
 
 function clearFilters() {
@@ -2292,17 +2400,63 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     drawInRectCenter(daysVal, 587, 454, 66, 23, 13, '#0f172a', '800', 'rtl');
   }
 
-  // 6. الحقول الاختيارية (الموظف البديل / المدير المباشر)
+  // 6. الحقول الاختيارية والاعتماد (الموظف البديل / المدير المباشر)
   if (extraOpts.altEmp) {
     drawInRectCenter(extraOpts.altEmp, 145, 550, 185, 22, 13.5, '#0f172a', '700', 'rtl');
   }
-  if (extraOpts.managerName) {
-    drawInRectCenter(extraOpts.managerName, 115, 795, 195, 22, 13.5, '#0f172a', '700', 'rtl');
-    drawInRectCenter(reqDate, 115, 888, 195, 22, 13, '#0f172a', '700', 'ltr');
+
+  // فحص حالة الاعتماد والموافقة
+  const isApproved = record.status === 'approved' || !!record.approvedBy || extraOpts.approved;
+  const approverName = record.approvedBy || extraOpts.managerName || (isApproved ? 'بلال طلال' : '');
+  const approvalDate = record.approvedAt || (isApproved ? reqDate : '');
+
+  if (isApproved) {
+    // 1) وضع علامة صح في مربع موافق (Approve) للمدير المباشر
+    drawCheckInBox(52.5, 746, 22, 20);
+
+    // 2) كتابة الاسم
+    drawInRectCenter(approverName, 115, 807, 195, 22, 14, '#0f172a', '700', 'rtl');
+
+    // 3) رسم التوقيع
+    drawRealisticSignature(ctx, approverName, 150, 860, S);
+
+    // 4) كتابة التاريخ
+    drawInRectCenter(approvalDate, 115, 898, 195, 22, 13, '#0f172a', '700', 'ltr');
+  } else if (extraOpts.managerName) {
+    drawInRectCenter(extraOpts.managerName, 115, 807, 195, 22, 13.5, '#0f172a', '700', 'rtl');
+    drawInRectCenter(reqDate, 115, 898, 195, 22, 13, '#0f172a', '700', 'ltr');
   }
 }
 
-// تحويل مصفوفة صور JPEG إلى ملف PDF قياسي حقيقي (A4) بدون أي مكتبات خارجية
+// دالة رسم التوقيع بخط يدوي واقعي
+function drawRealisticSignature(ctx, name, x, y, S) {
+  ctx.save();
+  ctx.strokeStyle = '#0f172a';
+  ctx.fillStyle = '#0f172a';
+  ctx.lineWidth = 1.8 * S;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const px = x * S;
+  const py = y * S;
+
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.bezierCurveTo(px + 12 * S, py - 14 * S, px + 28 * S, py - 4 * S, px + 36 * S, py + 2 * S);
+  ctx.bezierCurveTo(px + 45 * S, py + 8 * S, px + 18 * S, py + 12 * S, px + 14 * S, py + 4 * S);
+  ctx.bezierCurveTo(px + 10 * S, py - 8 * S, px + 55 * S, py - 18 * S, px + 75 * S, py - 2 * S);
+  ctx.bezierCurveTo(px + 88 * S, py + 10 * S, px + 105 * S, py + 2 * S, px + 125 * S, py - 6 * S);
+  ctx.stroke();
+
+  // خط زخرفي تحت التوقيع
+  ctx.beginPath();
+  ctx.lineWidth = 1.2 * S;
+  ctx.moveTo(px + 20 * S, py + 10 * S);
+  ctx.lineTo(px + 115 * S, py + 11 * S);
+  ctx.stroke();
+
+  ctx.restore();
+}
 function buildPdfFromJpegs(jpegDataUrls) {
   const pageWidthPt = 595.28;
   const pageHeightPt = 841.89;
