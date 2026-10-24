@@ -1860,8 +1860,8 @@ function returnToMainPageAfterPrint() {
   if (printContainer) printContainer.innerHTML = '';
   selectedRecordIds.clear();
   updateSelectedRecordsBadge();
+  switchNavTab('records');
   renderRecords();
-  switchNavTab('entry');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
