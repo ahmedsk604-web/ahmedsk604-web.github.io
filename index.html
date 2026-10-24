@@ -2266,12 +2266,7 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     drawCheckInBox(448, 374, 22, 20); // Unpaid Leave / غياب
   }
 
-  // 4. سطر نوع الإجازة / التفاصيل (Leave Type / نوع الإجازة) في منتصف السطر المنقط
-  let leaveTypeLine = record.type || '';
-  if (record.notes) {
-    leaveTypeLine += ` - ${record.notes}`;
-  }
-  drawInRectCenter(leaveTypeLine, 170, 413, 305, 22, 13.5, '#1e3a8a', '700', 'rtl');
+  // 4. خانة (Leave Type / نوع الإجازة) تبقى فارغة تماماً حسب الطلب
 
   // 5. مربعات من (From) / إلى (To) / عدد الأيام أو الساعات (No. of Days / Hours) في سنتر المستطيل بالضبط
   // From rect: x=103, y=454, w=123, h=23
