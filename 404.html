@@ -666,7 +666,7 @@ body {
       <label class="input-label">الصلاحية</label>
       <select id="accountRole" class="app-select">
         <option value="supervisor">👷 مراقب عمل (تسجيل غياب وإجازات وتصدير PDF فقط)</option>
-        <option value="manager">✍️ مسؤول الموافقة والاعتماد (الموافقة والتوقيع على الاستمارة)</option>
+        <option value="manager">✍️ مسؤول الموافقة والاعتماد (الموافقة والتوقيع وحذف الإجازات)</option>
         <option value="admin">👑 مدير النظام (صلاحية كاملة مع الحذف والإدارة)</option>
       </select>
     </div>
@@ -1305,6 +1305,10 @@ let systemUsers = [...defaultUsers];
 let currentUser = { username: "admin", role: "admin", displayName: "admin" };
 
 function isApprovalManager() {
+  return currentUser && (currentUser.username === 'بلال' || currentUser.role === 'manager' || currentUser.role === 'admin');
+}
+
+function canDeleteRecord() {
   return currentUser && (currentUser.username === 'بلال' || currentUser.role === 'manager' || currentUser.role === 'admin');
 }
 
@@ -2081,7 +2085,7 @@ function renderRecords() {
           <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
           <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
           <button class="btn btn-light btn-sm" onclick="openPdfFormModal('${r.id}', false)" style="border:1px solid #cbd5e1; color:#1e293b;">👁️ معاينة</button>
-          ${isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" style="background:#fee2e2; color:#991b1b;">🗑️ حذف</button>` : ''}
+          ${canDeleteRecord() ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" style="background:#fee2e2; color:#991b1b;">🗑️ حذف</button>` : ''}
         </div>
       </div>
     `;
@@ -2089,7 +2093,7 @@ function renderRecords() {
 }
 
 function deleteRecord(id) {
-  if (!isAdmin()) return alert('عذراً، حذف السجلات من صلاحية المدير فقط!');
+  if (!canDeleteRecord()) return alert('عذراً، حذف السجلات من صلاحية المدير ومسؤول الاعتماد فقط!');
   if (!confirm('هل تريد بالتأكيد حذف هذا السجل؟')) return;
   deletedRecordIds.add(String(id));
   selectedRecordIds.delete(String(id));
