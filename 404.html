@@ -1305,11 +1305,19 @@ let systemUsers = [...defaultUsers];
 let currentUser = { username: "admin", role: "admin", displayName: "admin" };
 
 function isApprovalManager() {
-  return currentUser && (currentUser.username === 'بلال' || currentUser.role === 'manager' || currentUser.role === 'admin');
+  if (!currentUser) return false;
+  const u = (currentUser.username || '').trim();
+  const d = (currentUser.displayName || '').trim();
+  const r = (currentUser.role || '').trim();
+  return r === 'admin' || r === 'manager' || u === 'بلال' || u.includes('بلال') || d.includes('بلال');
 }
 
 function canDeleteRecord() {
-  return currentUser && (currentUser.username === 'بلال' || currentUser.role === 'manager' || currentUser.role === 'admin');
+  if (!currentUser) return false;
+  const u = (currentUser.username || '').trim();
+  const d = (currentUser.displayName || '').trim();
+  const r = (currentUser.role || '').trim();
+  return r === 'admin' || r === 'manager' || u === 'بلال' || u.includes('بلال') || d.includes('بلال');
 }
 
 function isAdmin() {
