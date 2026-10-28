@@ -584,8 +584,20 @@ body {
           </div>
         </div>
 
-        <!-- تصفية السجلات -->
+        <!-- تصفية وترتيب السجلات -->
         <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px;">
+          <!-- خيار ترتيب السجلات تنازلي / تصاعدي -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap; gap:6px;">
+            <span style="font-size:12px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:5px;">
+              <span>🔃 ترتيب السجلات:</span>
+              <span id="currentSortBadge" style="font-size:11px; color:#2563eb; font-weight:700;">(الأحدث أولاً)</span>
+            </span>
+            <div style="display:flex; gap:6px;">
+              <button type="button" id="sortDescBtn" class="btn btn-sm" onclick="setRecordsSortOrder('desc')" style="padding:4px 10px; font-size:11px; font-weight:800; border-radius:6px; background:var(--primary); color:#ffffff; border:1px solid var(--primary); cursor:pointer;">⬇️ تنازلي (الأحدث)</button>
+              <button type="button" id="sortAscBtn" class="btn btn-sm" onclick="setRecordsSortOrder('asc')" style="padding:4px 10px; font-size:11px; font-weight:800; border-radius:6px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; cursor:pointer;">⬆️ تصاعدي (الأقدم)</button>
+            </div>
+          </div>
+
           <!-- فلتر الموظف (خاص ببلال والمدير فقط) -->
           <div id="filterWorkerContainer" style="display:none; margin-bottom:10px;">
             <label class="input-label">
@@ -2147,17 +2159,57 @@ async function saveData(actionMode = false) {
   }
 }
 
+let currentRecordsSortOrder = 'desc'; // تنازلي (الأحدث أولاً) افتراضياً
+
+function setRecordsSortOrder(order) {
+  currentRecordsSortOrder = order;
+  const descBtn = document.getElementById('sortDescBtn');
+  const ascBtn = document.getElementById('sortAscBtn');
+  const badge = document.getElementById('currentSortBadge');
+  if (descBtn && ascBtn) {
+    if (order === 'desc') {
+      descBtn.style.background = 'var(--primary)';
+      descBtn.style.color = '#ffffff';
+      descBtn.style.borderColor = 'var(--primary)';
+      ascBtn.style.background = '#f1f5f9';
+      ascBtn.style.color = '#475569';
+      ascBtn.style.borderColor = '#cbd5e1';
+      if (badge) badge.textContent = '(الأحدث أولاً)';
+    } else {
+      ascBtn.style.background = 'var(--primary)';
+      ascBtn.style.color = '#ffffff';
+      ascBtn.style.borderColor = 'var(--primary)';
+      descBtn.style.background = '#f1f5f9';
+      descBtn.style.color = '#475569';
+      descBtn.style.borderColor = '#cbd5e1';
+      if (badge) badge.textContent = '(الأقدم أولاً)';
+    }
+  }
+  renderRecords();
+}
+
 function getFilteredRecordsList() {
   const from = document.getElementById('filterFrom')?.value;
   const to = document.getElementById('filterTo')?.value;
   const filterWorker = document.getElementById('filterWorker')?.value;
-  return dbRecords.filter(r => {
+  const filtered = dbRecords.filter(r => {
     let d = r.dateFrom || r.date;
     if (!d) return false;
     if (from && d < from) return false;
     if (to && d > to) return false;
     if (filterWorker && r.worker !== filterWorker) return false;
     return true;
+  });
+
+  return filtered.sort((a, b) => {
+    const da = a.dateFrom || a.date || '';
+    const db = b.dateFrom || b.date || '';
+    if (da !== db) {
+      return currentRecordsSortOrder === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+    }
+    const ta = a.timeFrom || a.timestamp || '';
+    const tb = b.timeFrom || b.timestamp || '';
+    return currentRecordsSortOrder === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta);
   });
 }
 
@@ -2631,7 +2683,7 @@ function clearFilters() {
   if (fFrom) fFrom.value = '';
   if (fTo) fTo.value = '';
   if (fWorker) fWorker.value = '';
-  renderRecords();
+  setRecordsSortOrder('desc');
 }
 
 // الإحصائيات
@@ -2847,22 +2899,22 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     ctx.restore();
   };
 
-  // رسم خيار ومربع إجازة تعويضية دائماً في السطر الثاني بجانب إجازة زواج (x=37, y=374) ليكتمل سطر أنواع الإجازات
+  // رسم خيار ومربع إجازة تعويضية دائماً في السطر الثاني بجانب إجازة زواج (x=37, y=374) ليكتمل سطر أنواع الإجازات بنفس حجم وتنسيق المجاورات
   ctx.save();
   ctx.strokeStyle = '#222222';
   ctx.lineWidth = 1.3 * S;
   ctx.strokeRect(37 * S, 374 * S, 22 * S, 20 * S);
   
   ctx.direction = 'ltr';
-  ctx.font = `bold ${7 * S}px Arial, sans-serif`;
+  ctx.font = `bold ${11.5 * S}px Arial, sans-serif`;
   ctx.fillStyle = '#0f172a';
   ctx.textAlign = 'left';
-  ctx.fillText('Compensatory Leave', 62 * S, 382 * S);
+  ctx.fillText('Compensatory', 64 * S, 388 * S);
 
   ctx.direction = 'rtl';
-  ctx.font = `bold ${8.5 * S}px 'Cairo', 'Tahoma', Arial, sans-serif`;
+  ctx.font = `bold ${13 * S}px 'Cairo', 'Tahoma', Arial, sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText('إجازة تعويضية', 98 * S, 396 * S);
+  ctx.fillText('إجازة تعويضية', 88 * S, 410 * S);
   ctx.restore();
 
   if (t === 'زمنية' || t.includes('ساعات')) {
