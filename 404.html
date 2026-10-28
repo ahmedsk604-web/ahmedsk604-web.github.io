@@ -507,8 +507,26 @@ body {
         <div id="timeFields" style="display:none; background:#fffbeb; padding:14px; border-radius:12px; border:1px solid #fde68a; margin-bottom:14px;">
           <div style="font-size:13px; font-weight:700; color:#b45309; margin-bottom:8px;">⏱️ ساعات الاستئذان الزمني:</div>
           <div class="form-row" style="margin-bottom:6px;">
-            <div><label class="input-label">من الساعة</label><input type="time" id="timeFrom" class="app-input"></div>
-            <div><label class="input-label">إلى الساعة</label><input type="time" id="timeTo" class="app-input"></div>
+            <div>
+              <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>من الساعة</span>
+                <span id="timeFromPreviewBadge" style="font-size:11px; font-weight:800; color:#1d4ed8;"></span>
+              </label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="time" id="timeFrom" class="app-input" style="flex:1;" oninput="updateTimeInputsPreview()">
+                <button type="button" class="btn btn-sm" onclick="toggleTimeAmPm('timeFrom')" style="padding:7px 10px; font-size:11px; font-weight:800; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;" title="تبديل صباحاً / مساءً">AM/PM</button>
+              </div>
+            </div>
+            <div>
+              <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>إلى الساعة</span>
+                <span id="timeToPreviewBadge" style="font-size:11px; font-weight:800; color:#1d4ed8;"></span>
+              </label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="time" id="timeTo" class="app-input" style="flex:1;" oninput="updateTimeInputsPreview()">
+                <button type="button" class="btn btn-sm" onclick="toggleTimeAmPm('timeTo')" style="padding:7px 10px; font-size:11px; font-weight:800; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;" title="تبديل صباحاً / مساءً">AM/PM</button>
+              </div>
+            </div>
           </div>
           <p style="font-size:11px; color:#b45309;">* الاستئذان الزمني لا يُحتسب كأيام غياب في الرصيد.</p>
         </div>
@@ -802,12 +820,24 @@ body {
 
     <div id="editTimeRow" class="form-row" style="display:none; margin-bottom:10px;">
       <div>
-        <label class="input-label">من وقت</label>
-        <input type="time" id="editRecordTimeFrom" class="app-input">
+        <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>من وقت</span>
+          <span id="editTimeFromPreviewBadge" style="font-size:11px; font-weight:800; color:#1d4ed8;"></span>
+        </label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="time" id="editRecordTimeFrom" class="app-input" style="flex:1;" oninput="updateTimeInputsPreview()">
+          <button type="button" class="btn btn-sm" onclick="toggleTimeAmPm('editRecordTimeFrom')" style="padding:7px 10px; font-size:11px; font-weight:800; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;" title="تبديل صباحاً / مساءً">AM/PM</button>
+        </div>
       </div>
       <div>
-        <label class="input-label">إلى وقت</label>
-        <input type="time" id="editRecordTimeTo" class="app-input">
+        <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>إلى وقت</span>
+          <span id="editTimeToPreviewBadge" style="font-size:11px; font-weight:800; color:#1d4ed8;"></span>
+        </label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="time" id="editRecordTimeTo" class="app-input" style="flex:1;" oninput="updateTimeInputsPreview()">
+          <button type="button" class="btn btn-sm" onclick="toggleTimeAmPm('editRecordTimeTo')" style="padding:7px 10px; font-size:11px; font-weight:800; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;" title="تبديل صباحاً / مساءً">AM/PM</button>
+        </div>
       </div>
     </div>
 
@@ -2054,7 +2084,6 @@ async function saveData(actionMode = false) {
 
   let noteExtra = '';
   if (type === 'إجازة تعويضية') noteExtra += ` [تعويض عن: ${compDate}]`;
-  if (type === 'زمنية') noteExtra += ` [استئذان من ${timeFrom} إلى ${timeTo}]`;
 
   const finalNotes = (notesInput + noteExtra).trim();
   const newlyAddedRecords = [];
@@ -2172,6 +2201,9 @@ function renderRecords() {
 
   container.innerHTML = filtered.map(r => {
     let dateStr = r.dateTo ? `${r.dateFrom} ⬅️ ${r.dateTo}` : (r.dateFrom || r.date);
+    if (r.type === 'زمنية' && (r.timeFrom || r.timeTo)) {
+      dateStr = `${r.dateFrom || r.date} (⏱️ من ${formatTimeWithAmPm(r.timeFrom)} إلى ${formatTimeWithAmPm(r.timeTo)})`;
+    }
     let badgeClass = 'badge-success';
     if (r.type === 'غياب') badgeClass = 'badge-danger';
     else if (r.type === 'زمنية') badgeClass = 'badge-warning';
@@ -2179,6 +2211,7 @@ function renderRecords() {
 
     const isSelected = selectedRecordIds.has(String(r.id));
     const isApproved = r.status === 'approved' || !!r.approvedBy;
+    const cleanNotes = (r.notes || '').replace(/\[استئذان\s+من\s+[^\]]+\]/gi, '').trim();
 
     return `
       <div class="record-card type-${r.type.replace(/\s+/g, '-')} ${isSelected ? 'selected-for-print' : ''}">
@@ -2200,7 +2233,7 @@ function renderRecords() {
           <span>📅 ${dateStr}</span>
           <span style="font-size:11px; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px; font-weight:700;">✍️ بواسطة: ${r.addedBy || 'المدير العام'}</span>
         </div>
-        ${r.notes ? `<div class="record-notes">📝 ${r.notes}</div>` : ''}
+        ${cleanNotes ? `<div class="record-notes">📝 ${cleanNotes}</div>` : ''}
         <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; align-items:center;">
           ${isApprovalManager() ? (
             !isApproved ? 
@@ -2216,6 +2249,61 @@ function renderRecords() {
       </div>
     `;
   }).join('');
+}
+
+// دالة لتنسيق الوقت بصيغة 12 ساعة مع AM / PM واضحة
+function formatTimeWithAmPm(timeStr) {
+  if (!timeStr) return '';
+  const s = String(timeStr).trim();
+  if (/am|pm|AM|PM|ص|م/i.test(s)) return s;
+  
+  const parts = s.split(':');
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10);
+    const m = parts[1].slice(0, 2);
+    if (isNaN(h)) return s;
+    const period = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    const hFormatted = h12 < 10 ? '0' + h12 : '' + h12;
+    return `${hFormatted}:${m} ${period}`;
+  }
+  return s;
+}
+
+// دالة لتبديل الوقت بين صباحاً ومساءً (AM <-> PM)
+function toggleTimeAmPm(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el || !el.value) return;
+  const parts = el.value.split(':');
+  let h = parseInt(parts[0], 10);
+  const m = parts[1] || '00';
+  if (isNaN(h)) return;
+  if (h < 12) {
+    h = h + 12;
+  } else {
+    h = h - 12;
+  }
+  const hStr = h < 10 ? '0' + h : '' + h;
+  el.value = `${hStr}:${m}`;
+  updateTimeInputsPreview();
+}
+
+// تحديث شارة المعاينة التلقائية للوقت (AM/PM)
+function updateTimeInputsPreview() {
+  const f = document.getElementById('timeFrom')?.value;
+  const t = document.getElementById('timeTo')?.value;
+  const fBadge = document.getElementById('timeFromPreviewBadge');
+  const tBadge = document.getElementById('timeToPreviewBadge');
+  if (fBadge) fBadge.textContent = f ? formatTimeWithAmPm(f) : '';
+  if (tBadge) tBadge.textContent = t ? formatTimeWithAmPm(t) : '';
+
+  const ef = document.getElementById('editRecordTimeFrom')?.value;
+  const et = document.getElementById('editRecordTimeTo')?.value;
+  const efBadge = document.getElementById('editTimeFromPreviewBadge');
+  const etBadge = document.getElementById('editTimeToPreviewBadge');
+  if (efBadge) efBadge.textContent = ef ? formatTimeWithAmPm(ef) : '';
+  if (etBadge) etBadge.textContent = et ? formatTimeWithAmPm(et) : '';
 }
 
 // ==================== دوال تعديل الحركة وإحصائيات الموظفين (خاصة بالمدير وبلال) ====================
@@ -2238,6 +2326,7 @@ function openEditRecordModal(id) {
   document.getElementById('editRecordNotes').value = rec.notes || '';
 
   toggleEditTimeInputs();
+  updateTimeInputsPreview();
   document.getElementById('editRecordModal').classList.add('active');
 }
 
@@ -2251,6 +2340,7 @@ function toggleEditTimeInputs() {
   document.getElementById('editTimeRow').style.display = isTime ? 'grid' : 'none';
   document.getElementById('editDateToLabel').style.display = isTime ? 'none' : 'block';
   document.getElementById('editRecordDateTo').style.display = isTime ? 'none' : 'block';
+  updateTimeInputsPreview();
 }
 
 function autoCalculateEditDays() {
@@ -2756,8 +2846,12 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
   }
 
   // 4. خانة (Leave Type / نوع الإجازة) - إذا كتب سبب الإجازة يظهر هنا فوق خط نوع الإجازة
-  if (record.notes && record.notes.trim()) {
-    drawInRectCenter(record.notes.trim(), 170, 420, 280, 20, 13.5, '#0f172a', '700', 'rtl');
+  // عند أخذ زمنية، لا نكتب أي شيء في خانة نوع الإجازة حسب الطلب
+  if (t !== 'زمنية') {
+    const cleanNotes = (record.notes || '').replace(/\[[^\]]+\]/g, '').trim();
+    if (cleanNotes) {
+      drawInRectCenter(cleanNotes, 170, 420, 280, 20, 13.5, '#0f172a', '700', 'rtl');
+    }
   }
 
   // 5. مربعات من (From) / إلى (To) / عدد الأيام أو الساعات (No. of Days / Hours) في سنتر المستطيل بالضبط
@@ -2765,13 +2859,17 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
   // To rect: x=293, y=454, w=124, h=23
   // Days/Hours rect: x=587, y=454, w=66, h=23
   if (t === 'زمنية') {
-    drawInRectCenter(record.timeFrom || record.dateFrom || '', 103, 454, 123, 23, 13, '#0f172a', '800', 'ltr');
-    drawInRectCenter(record.timeTo || record.dateFrom || '', 293, 454, 124, 23, 13, '#0f172a', '800', 'ltr');
+    const formattedFrom = formatTimeWithAmPm(record.timeFrom || record.dateFrom || '');
+    const formattedTo = formatTimeWithAmPm(record.timeTo || record.dateFrom || '');
+    drawInRectCenter(formattedFrom, 103, 454, 123, 23, 13, '#0f172a', '800', 'ltr');
+    drawInRectCenter(formattedTo, 293, 454, 124, 23, 13, '#0f172a', '800', 'ltr');
     let hrsText = 'زمنية';
     if (record.timeFrom && record.timeTo) {
       const [h1, m1] = record.timeFrom.split(':').map(Number);
       const [h2, m2] = record.timeTo.split(':').map(Number);
-      const diffHrs = ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60;
+      let diffMins = (h2 * 60 + m2) - (h1 * 60 + m1);
+      if (diffMins < 0) diffMins += 24 * 60;
+      const diffHrs = diffMins / 60;
       if (diffHrs > 0) hrsText = `${Number(diffHrs.toFixed(1))} ساعة`;
     }
     drawInRectCenter(hrsText, 587, 454, 66, 23, 12, '#0f172a', '800', 'rtl');
