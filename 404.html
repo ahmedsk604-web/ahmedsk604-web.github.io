@@ -544,8 +544,41 @@ body {
           </div>
         </div>
 
+        <!-- كشف إحصائيات الموظفين (الغيابات والإجازات والزمنيات) - خاص ببلال والمدير فقط -->
+        <div id="workersStatsSection" style="display:none; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:14px; padding:14px; margin-bottom:14px; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleWorkersStatsView()">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">📊</span>
+              <div>
+                <div style="font-size:15px; font-weight:800; color:#0f172a;">كشف إحصائيات الموظفين (الغيابات والإجازات والزمنيات)</div>
+                <div style="font-size:12px; color:#64748b;">حساب تلقائي لعدد الغيابات والإجازات والزمنيات لكل موظف (خاص بالإدارة)</div>
+              </div>
+            </div>
+            <span id="statsToggleBtn" style="font-size:12px; font-weight:700; background:#f1f5f9; color:#1e293b; padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1;">▼ عرض الكشف</span>
+          </div>
+
+          <div id="workersStatsContent" style="display:none; margin-top:14px; border-top:1px dashed #e2e8f0; padding-top:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+              <input type="text" id="statsSearchInput" class="app-input" placeholder="🔍 ابحث عن اسم موظف في الإحصائيات..." style="flex:1; min-width:200px;" oninput="renderWorkersStatsTable()">
+              <button class="btn btn-light btn-sm" onclick="exportWorkersStatsExcel()" style="border:1px solid #cbd5e1; font-weight:700;">📥 تصدير الإحصائيات Excel</button>
+            </div>
+            <div id="workersStatsTableContainer" style="overflow-x:auto;"></div>
+          </div>
+        </div>
+
         <!-- تصفية السجلات -->
         <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px;">
+          <!-- فلتر الموظف (خاص ببلال والمدير فقط) -->
+          <div id="filterWorkerContainer" style="display:none; margin-bottom:10px;">
+            <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>👤 تصفية السجلات حسب الموظف</span>
+              <span style="font-size:11px; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-weight:700;">خاص ببلال والمدير</span>
+            </label>
+            <select id="filterWorker" class="app-select" onchange="renderRecords()">
+              <option value="">-- عرض كافة الموظفين --</option>
+            </select>
+          </div>
+
           <div class="form-row" style="margin-bottom:8px;">
             <div><label class="input-label">من تاريخ</label><input type="date" id="filterFrom" class="app-input" onchange="renderRecords()"></div>
             <div><label class="input-label">إلى تاريخ</label><input type="date" id="filterTo" class="app-input" onchange="renderRecords()"></div>
@@ -724,6 +757,74 @@ body {
     <div style="display:flex; gap:10px; margin-top:20px;">
       <button class="btn btn-primary" onclick="confirmEditWorker()">حفظ التعديلات</button>
       <button class="btn btn-light" onclick="closeEditWorkerModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة منبثقة: تعديل حركة إجازة أو غياب (خاصة بالمدير وبلال طلال) -->
+<div id="editRecordModal" class="modal-overlay">
+  <div class="modal-sheet" style="max-height:90vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+      <h3 style="margin:0; font-size:16px; font-weight:800; color:#0f172a;">✏️ تعديل بيانات الحركة / الإجازة</h3>
+      <button onclick="closeEditRecordModal()" style="background:none; border:none; font-size:20px; color:#64748b; cursor:pointer;">✕</button>
+    </div>
+    <input type="hidden" id="editRecordId">
+    
+    <div class="input-group">
+      <label class="input-label">الموظف</label>
+      <select id="editRecordWorker" class="app-select"></select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">نوع الحركة / الإجازة</label>
+      <select id="editRecordType" class="app-select" onchange="toggleEditTimeInputs()">
+        <option value="غياب">غياب 🔴</option>
+        <option value="إجازة اعتيادية">إجازة اعتيادية 🟢</option>
+        <option value="إجازة مرضية">إجازة مرضية 🏥</option>
+        <option value="زمنية">إجازة زمنية (ساعات) ⏱️</option>
+        <option value="إجازة تعويضية">إجازة تعويضية 🔄</option>
+        <option value="إجازة زواج">إجازة زواج 💍</option>
+        <option value="إجازة سنوية">إجازة سنوية 🏖️</option>
+        <option value="إجازة وفاة / عزاء">إجازة وفاة / عزاء 🖤</option>
+        <option value="إجازة غير مدفوعة الأجر">إجازة غير مدفوعة الأجر 📝</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label class="input-label" id="editDateFromLabel">من تاريخ</label>
+        <input type="date" id="editRecordDateFrom" class="app-input" onchange="autoCalculateEditDays()">
+      </div>
+      <div>
+        <label class="input-label" id="editDateToLabel">إلى تاريخ</label>
+        <input type="date" id="editRecordDateTo" class="app-input" onchange="autoCalculateEditDays()">
+      </div>
+    </div>
+
+    <div id="editTimeRow" class="form-row" style="display:none; margin-bottom:10px;">
+      <div>
+        <label class="input-label">من وقت</label>
+        <input type="time" id="editRecordTimeFrom" class="app-input">
+      </div>
+      <div>
+        <label class="input-label">إلى وقت</label>
+        <input type="time" id="editRecordTimeTo" class="app-input">
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">عدد الأيام أو الساعات</label>
+      <input type="number" id="editRecordDays" class="app-input" min="0.5" step="0.5" value="1">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">سبب الإجازة / ملاحظات (يظهر بالاستمارة في خانة نوع الإجازة)</label>
+      <input type="text" id="editRecordNotes" class="app-input" placeholder="اكتب سبب الإجازة، تفاصيل إضافية...">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn btn-primary" onclick="saveEditedRecord()" style="flex:1;">💾 حفظ التعديل والمزامنة</button>
+      <button class="btn btn-light" onclick="closeEditRecordModal()" style="flex:1;">إلغاء</button>
     </div>
   </div>
 </div>
@@ -1510,6 +1611,21 @@ function applyUserPermissionsUI() {
 
   const btnBatchApprove = document.getElementById('btnBatchApprove');
   if (btnBatchApprove) btnBatchApprove.style.display = isApprovalManager() ? 'inline-flex' : 'none';
+
+  const isMgr = canDeleteRecord();
+  const filterWorkerContainer = document.getElementById('filterWorkerContainer');
+  if (filterWorkerContainer) {
+    filterWorkerContainer.style.display = isMgr ? 'block' : 'none';
+    if (isMgr) populateWorkerFilterOptions();
+  }
+
+  const workersStatsSection = document.getElementById('workersStatsSection');
+  if (workersStatsSection) {
+    workersStatsSection.style.display = isMgr ? 'block' : 'none';
+    if (isMgr && document.getElementById('workersStatsContent')?.style.display !== 'none') {
+      renderWorkersStatsTable();
+    }
+  }
 }
 
 function initApp() {
@@ -2001,11 +2117,13 @@ async function saveData(actionMode = false) {
 function getFilteredRecordsList() {
   const from = document.getElementById('filterFrom')?.value;
   const to = document.getElementById('filterTo')?.value;
+  const filterWorker = document.getElementById('filterWorker')?.value;
   return dbRecords.filter(r => {
     let d = r.dateFrom || r.date;
     if (!d) return false;
     if (from && d < from) return false;
     if (to && d > to) return false;
+    if (filterWorker && r.worker !== filterWorker) return false;
     return true;
   });
 }
@@ -2093,11 +2211,241 @@ function renderRecords() {
           <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
           <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
           <button class="btn btn-light btn-sm" onclick="openPdfFormModal('${r.id}', false)" style="border:1px solid #cbd5e1; color:#1e293b;">👁️ معاينة</button>
+          ${canDeleteRecord() ? `<button class="btn btn-light btn-sm" onclick="openEditRecordModal('${r.id}')" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-weight:700;">✏️ تعديل</button>` : ''}
           ${canDeleteRecord() ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" style="background:#fee2e2; color:#991b1b;">🗑️ حذف</button>` : ''}
         </div>
       </div>
     `;
   }).join('');
+}
+
+// ==================== دوال تعديل الحركة وإحصائيات الموظفين (خاصة بالمدير وبلال) ====================
+function openEditRecordModal(id) {
+  if (!canDeleteRecord()) return alert('عذراً، صلاحية التعديل للمدير وبلال طلال فقط!');
+  const rec = dbRecords.find(r => String(r.id) === String(id));
+  if (!rec) return alert('لم يتم العثور على السجل!');
+
+  document.getElementById('editRecordId').value = rec.id;
+
+  const workerSelect = document.getElementById('editRecordWorker');
+  workerSelect.innerHTML = workers.map(w => `<option value="${w.name}" ${w.name === rec.worker ? 'selected' : ''}>${w.name} (${w.role || 'عامل'})</option>`).join('');
+
+  document.getElementById('editRecordType').value = rec.type || 'إجازة اعتيادية';
+  document.getElementById('editRecordDateFrom').value = rec.dateFrom || rec.date || '';
+  document.getElementById('editRecordDateTo').value = rec.dateTo || rec.dateFrom || rec.date || '';
+  document.getElementById('editRecordTimeFrom').value = rec.timeFrom || '';
+  document.getElementById('editRecordTimeTo').value = rec.timeTo || '';
+  document.getElementById('editRecordDays').value = rec.days || 1;
+  document.getElementById('editRecordNotes').value = rec.notes || '';
+
+  toggleEditTimeInputs();
+  document.getElementById('editRecordModal').classList.add('active');
+}
+
+function closeEditRecordModal() {
+  document.getElementById('editRecordModal').classList.remove('active');
+}
+
+function toggleEditTimeInputs() {
+  const type = document.getElementById('editRecordType').value;
+  const isTime = type === 'زمنية';
+  document.getElementById('editTimeRow').style.display = isTime ? 'grid' : 'none';
+  document.getElementById('editDateToLabel').style.display = isTime ? 'none' : 'block';
+  document.getElementById('editRecordDateTo').style.display = isTime ? 'none' : 'block';
+}
+
+function autoCalculateEditDays() {
+  const type = document.getElementById('editRecordType').value;
+  if (type === 'زمنية') return;
+  const d1 = document.getElementById('editRecordDateFrom').value;
+  const d2 = document.getElementById('editRecordDateTo').value;
+  if (d1 && d2) {
+    const t1 = new Date(d1).getTime();
+    const t2 = new Date(d2).getTime();
+    const diff = Math.round((t2 - t1) / (1000 * 60 * 60 * 24)) + 1;
+    if (diff > 0) document.getElementById('editRecordDays').value = diff;
+  }
+}
+
+function saveEditedRecord() {
+  if (!canDeleteRecord()) return alert('عذراً، صلاحية التعديل للمدير وبلال طلال فقط!');
+  const id = document.getElementById('editRecordId').value;
+  const recIdx = dbRecords.findIndex(r => String(r.id) === String(id));
+  if (recIdx === -1) return alert('السجل غير موجود!');
+
+  const worker = document.getElementById('editRecordWorker').value;
+  const workerObj = workers.find(w => w.name === worker) || {};
+  const type = document.getElementById('editRecordType').value;
+  const dateFrom = document.getElementById('editRecordDateFrom').value;
+  const dateTo = type === 'زمنية' ? dateFrom : (document.getElementById('editRecordDateTo').value || dateFrom);
+  const timeFrom = type === 'زمنية' ? document.getElementById('editRecordTimeFrom').value : '';
+  const timeTo = type === 'زمنية' ? document.getElementById('editRecordTimeTo').value : '';
+  const days = Number(document.getElementById('editRecordDays').value) || 1;
+  const notes = document.getElementById('editRecordNotes').value.trim();
+
+  dbRecords[recIdx] = {
+    ...dbRecords[recIdx],
+    worker,
+    role: workerObj.role || dbRecords[recIdx].role || 'عامل',
+    type,
+    dateFrom,
+    dateTo,
+    date: dateFrom,
+    timeFrom,
+    timeTo,
+    days,
+    notes,
+    lastEditedBy: currentUser ? (currentUser.displayName || currentUser.username) : 'المدير',
+    lastEditedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  closeEditRecordModal();
+  renderRecords();
+  renderSummary();
+  renderWorkersStatsTable();
+  pushToCloud();
+  alert('✅ تم تعديل بيانات الحركة وحفظها ومزامنتها بنجاح!');
+}
+
+function populateWorkerFilterOptions() {
+  const fw = document.getElementById('filterWorker');
+  if (!fw) return;
+  const currVal = fw.value;
+  const workerNamesSet = new Set(workers.map(w => w.name));
+  dbRecords.forEach(r => { if (r.worker) workerNamesSet.add(r.worker); });
+  const sortedNames = Array.from(workerNamesSet).sort((a, b) => a.localeCompare(b, 'ar'));
+
+  fw.innerHTML = '<option value="">-- عرض كافة الموظفين --</option>' + 
+    sortedNames.map(name => `<option value="${name}" ${name === currVal ? 'selected' : ''}>${name}</option>`).join('');
+}
+
+function toggleWorkersStatsView() {
+  const content = document.getElementById('workersStatsContent');
+  const btn = document.getElementById('statsToggleBtn');
+  if (!content) return;
+  const isHidden = content.style.display === 'none';
+  content.style.display = isHidden ? 'block' : 'none';
+  if (btn) btn.textContent = isHidden ? '▲ إخفاء الكشف' : '▼ عرض الكشف';
+  if (isHidden) renderWorkersStatsTable();
+}
+
+function calculateWorkerStats(workerName) {
+  const workerRecs = dbRecords.filter(r => r.worker === workerName);
+  let absences = 0;
+  let leaves = 0;
+  let times = 0;
+
+  workerRecs.forEach(r => {
+    const t = (r.type || '').trim();
+    const d = Number(r.days || 1);
+    if (t === 'غياب') {
+      absences += d;
+    } else if (t === 'زمنية') {
+      times += 1;
+    } else {
+      leaves += d;
+    }
+  });
+
+  return { absences, leaves, times, total: absences + leaves + times };
+}
+
+function renderWorkersStatsTable() {
+  const container = document.getElementById('workersStatsTableContainer');
+  if (!container) return;
+
+  const search = (document.getElementById('statsSearchInput')?.value || '').trim().toLowerCase();
+
+  const workerNamesSet = new Set(workers.map(w => w.name));
+  dbRecords.forEach(r => { if (r.worker) workerNamesSet.add(r.worker); });
+  let list = Array.from(workerNamesSet);
+
+  if (search) {
+    list = list.filter(name => name.toLowerCase().includes(search));
+  }
+
+  const statsList = list.map(name => {
+    const wObj = workers.find(w => w.name === name) || {};
+    const stats = calculateWorkerStats(name);
+    return { name, role: wObj.role || 'عامل', ...stats };
+  }).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ar'));
+
+  if (statsList.length === 0) {
+    container.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:20px;">لا توجد نتائج مطابقة للبحث.</p>';
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:center;">
+      <thead>
+        <tr style="background:#f8fafc; color:#475569; border-bottom:2px solid #e2e8f0;">
+          <th style="padding:10px 8px; text-align:right;">اسم الموظف / الصفة</th>
+          <th style="padding:10px 8px; color:#dc2626;">🔴 الغيابات</th>
+          <th style="padding:10px 8px; color:#16a34a;">🟢 الإجازات</th>
+          <th style="padding:10px 8px; color:#d97706;">⏱️ الزمنيات</th>
+          <th style="padding:10px 8px; color:#1e293b;">الإجمالي</th>
+          <th style="padding:10px 8px;">إجراء</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${statsList.map((s, idx) => `
+          <tr style="border-bottom:1px solid #f1f5f9; background:${idx % 2 === 0 ? '#ffffff' : '#fcfcfd'};">
+            <td style="padding:10px 8px; text-align:right;">
+              <div style="font-weight:700; color:#0f172a;">${s.name}</div>
+              <div style="font-size:11px; color:#64748b;">${s.role}</div>
+            </td>
+            <td style="padding:10px 8px; font-weight:800; color:#dc2626; font-size:14px;">
+              ${s.absences > 0 ? `${s.absences} يوم` : '<span style="color:#cbd5e1; font-weight:400;">0</span>'}
+            </td>
+            <td style="padding:10px 8px; font-weight:800; color:#16a34a; font-size:14px;">
+              ${s.leaves > 0 ? `${s.leaves} يوم` : '<span style="color:#cbd5e1; font-weight:400;">0</span>'}
+            </td>
+            <td style="padding:10px 8px; font-weight:800; color:#d97706; font-size:14px;">
+              ${s.times > 0 ? `${s.times} زمنية` : '<span style="color:#cbd5e1; font-weight:400;">0</span>'}
+            </td>
+            <td style="padding:10px 8px; font-weight:800; color:#1e293b;">
+              ${s.total}
+            </td>
+            <td style="padding:10px 8px;">
+              <button class="btn btn-light btn-sm" onclick="filterBySpecificWorker('${s.name.replace(/'/g, "\\'")}')" style="padding:4px 8px; font-size:11px; border:1px solid #cbd5e1; font-weight:700;">🔍 عرض سجلاته</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function filterBySpecificWorker(workerName) {
+  const fw = document.getElementById('filterWorker');
+  if (fw) {
+    fw.value = workerName;
+    renderRecords();
+    const recordsList = document.getElementById('recordsCardsList');
+    if (recordsList) {
+      recordsList.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+}
+
+function exportWorkersStatsExcel() {
+  const workerNamesSet = new Set(workers.map(w => w.name));
+  dbRecords.forEach(r => { if (r.worker) workerNamesSet.add(r.worker); });
+  const rows = [
+    ["اسم الموظف", "الصفة / العنوان الوظيفي", "عدد أيام الغياب", "عدد أيام الإجازات", "عدد الحركات الزمنية", "إجمالي الحركات"]
+  ];
+
+  Array.from(workerNamesSet).forEach(name => {
+    const wObj = workers.find(w => w.name === name) || {};
+    const stats = calculateWorkerStats(name);
+    rows.push([name, wObj.role || 'عامل', stats.absences, stats.leaves, stats.times, stats.total]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "إحصائيات الموظفين");
+  XLSX.writeFile(wb, `كشف_إحصائيات_الموظفين_BMH_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 function deleteRecord(id) {
@@ -2110,6 +2458,7 @@ function deleteRecord(id) {
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
   renderRecords();
   renderSummary();
+  renderWorkersStatsTable();
   pushToCloud();
 }
 
@@ -2169,8 +2518,12 @@ function approveSelectedRecordsBatch() {
 }
 
 function clearFilters() {
-  document.getElementById('filterFrom').value = '';
-  document.getElementById('filterTo').value = '';
+  const fFrom = document.getElementById('filterFrom');
+  const fTo = document.getElementById('filterTo');
+  const fWorker = document.getElementById('filterWorker');
+  if (fFrom) fFrom.value = '';
+  if (fTo) fTo.value = '';
+  if (fWorker) fWorker.value = '';
   renderRecords();
 }
 
@@ -2403,7 +2756,10 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     drawCheckInBox(448, 374, 22, 20); // Unpaid Leave / غياب
   }
 
-  // 4. خانة (Leave Type / نوع الإجازة) تبقى فارغة تماماً حسب الطلب
+  // 4. خانة (Leave Type / نوع الإجازة) - إذا كتب سبب الإجازة يظهر هنا فوق خط نوع الإجازة
+  if (record.notes && record.notes.trim()) {
+    drawInRectCenter(record.notes.trim(), 170, 420, 280, 20, 13.5, '#0f172a', '700', 'rtl');
+  }
 
   // 5. مربعات من (From) / إلى (To) / عدد الأيام أو الساعات (No. of Days / Hours) في سنتر المستطيل بالضبط
   // From rect: x=103, y=454, w=123, h=23
