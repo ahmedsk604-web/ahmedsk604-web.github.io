@@ -841,8 +841,12 @@ body {
       </div>
     </div>
 
+    <div id="editCompRow" style="display:none; background:#ecfeff; padding:10px; border-radius:10px; border:1px solid #a5f3fc; margin-bottom:10px;">
+      <label class="input-label" style="color:#0e7490;">🔄 تعويض عن يوم عمل في تاريخ:</label>
+      <input type="date" id="editRecordCompDate" class="app-input">
+    </div>
+
     <div class="input-group">
-      <label class="input-label">عدد الأيام أو الساعات</label>
       <input type="number" id="editRecordDays" class="app-input" min="0.5" step="0.5" value="1">
     </div>
 
@@ -2102,6 +2106,7 @@ async function saveData(actionMode = false) {
       timeTo, 
       dateFrom, 
       dateTo,
+      compDate: type === 'إجازة تعويضية' ? compDate : '',
       notes: finalNotes, 
       addedBy: addedByUser, 
       timestamp: new Date().toISOString(),
@@ -2324,6 +2329,14 @@ function openEditRecordModal(id) {
   document.getElementById('editRecordTimeTo').value = rec.timeTo || '';
   document.getElementById('editRecordDays').value = rec.days || 1;
   document.getElementById('editRecordNotes').value = rec.notes || '';
+  
+  let compD = rec.compDate || '';
+  if (!compD && rec.notes) {
+    const m = rec.notes.match(/\[?تعويض\s*عن:?\s*([^\]\n]+)\]?/);
+    if (m) compD = m[1].trim();
+  }
+  const editCompEl = document.getElementById('editRecordCompDate');
+  if (editCompEl) editCompEl.value = compD;
 
   toggleEditTimeInputs();
   updateTimeInputsPreview();
@@ -2337,7 +2350,10 @@ function closeEditRecordModal() {
 function toggleEditTimeInputs() {
   const type = document.getElementById('editRecordType').value;
   const isTime = type === 'زمنية';
+  const isComp = type === 'إجازة تعويضية';
   document.getElementById('editTimeRow').style.display = isTime ? 'grid' : 'none';
+  const editCompRow = document.getElementById('editCompRow');
+  if (editCompRow) editCompRow.style.display = isComp ? 'block' : 'none';
   document.getElementById('editDateToLabel').style.display = isTime ? 'none' : 'block';
   document.getElementById('editRecordDateTo').style.display = isTime ? 'none' : 'block';
   updateTimeInputsPreview();
@@ -2369,6 +2385,7 @@ function saveEditedRecord() {
   const dateTo = type === 'زمنية' ? dateFrom : (document.getElementById('editRecordDateTo').value || dateFrom);
   const timeFrom = type === 'زمنية' ? document.getElementById('editRecordTimeFrom').value : '';
   const timeTo = type === 'زمنية' ? document.getElementById('editRecordTimeTo').value : '';
+  const compDate = type === 'إجازة تعويضية' ? (document.getElementById('editRecordCompDate')?.value || '') : '';
   const days = Number(document.getElementById('editRecordDays').value) || 1;
   const notes = document.getElementById('editRecordNotes').value.trim();
 
@@ -2382,6 +2399,7 @@ function saveEditedRecord() {
     date: dateFrom,
     timeFrom,
     timeTo,
+    compDate,
     days,
     notes,
     lastEditedBy: currentUser ? (currentUser.displayName || currentUser.username) : 'المدير',
@@ -2845,12 +2863,44 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     drawCheckInBox(448, 374, 22, 20); // Unpaid Leave / غياب
   }
 
-  // 4. خانة (Leave Type / نوع الإجازة) - إذا كتب سبب الإجازة يظهر هنا فوق خط نوع الإجازة
-  // عند أخذ زمنية، لا نكتب أي شيء في خانة نوع الإجازة حسب الطلب
-  if (t !== 'زمنية') {
-    const cleanNotes = (record.notes || '').replace(/\[[^\]]+\]/g, '').trim();
-    if (cleanNotes) {
-      drawInRectCenter(cleanNotes, 170, 420, 280, 20, 13.5, '#0f172a', '700', 'rtl');
+  // 4. خانة (Leave Type / نوع الإجازة) - كل شيء يُذكر إلا الاستئذان بالساعات (زمنية) يُترك فارغاً تماماً
+  const isZamaniya = t === 'زمنية' || t.includes('ساعات') || t.includes('استئذان');
+  if (!isZamaniya) {
+    let leaveTypeText = '';
+    if (t.includes('تعويض')) {
+      // إجازة تعويضية: ذكر تفاصيل التعويض وتاريخه والسبب بوضوح
+      let compDateStr = record.compDate || '';
+      const matchComp = (record.notes || '').match(/\[?تعويض\s*عن:?\s*([^\]\n]+)\]?/);
+      if (matchComp) {
+        compDateStr = matchComp[1].trim();
+      }
+      const userNotes = (record.notes || '')
+        .replace(/\[?تعويض\s*عن:?\s*[^\]\n]+\]?/g, '')
+        .replace(/\[[^\]]+\]/g, '')
+        .trim();
+
+      if (compDateStr && userNotes) {
+        leaveTypeText = `إجازة تعويضية (${compDateStr}) - ${userNotes}`;
+      } else if (compDateStr) {
+        leaveTypeText = `إجازة تعويضية (تعويض عن: ${compDateStr})`;
+      } else if (userNotes) {
+        leaveTypeText = `إجازة تعويضية - ${userNotes}`;
+      } else {
+        leaveTypeText = `إجازة تعويضية`;
+      }
+    } else {
+      // باقي أنواع الإجازات: يذكر سبب الإجازة إن كتبه، أو يذكر نوع الإجازة نفسه
+      const cleanNotes = (record.notes || '').replace(/\[استئذان[^\]]*\]/g, '').trim();
+      if (cleanNotes) {
+        leaveTypeText = cleanNotes;
+      } else if (record.type) {
+        leaveTypeText = record.type;
+      }
+    }
+
+    if (leaveTypeText) {
+      const fontSize = leaveTypeText.length > 32 ? 11 : (leaveTypeText.length > 22 ? 12.5 : 13.5);
+      drawInRectCenter(leaveTypeText, 170, 420, 280, 20, fontSize, '#0f172a', '700', 'rtl');
     }
   }
 
