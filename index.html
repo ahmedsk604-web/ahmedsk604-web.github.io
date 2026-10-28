@@ -2901,8 +2901,8 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
 
   if (t === 'زمنية' || t.includes('ساعات')) {
     drawCheckInBox(37, 328, 22, 20); // Temporary / Hours Leave
-  } else if (t.includes('اعتيادية') || t.includes('إعتيادية')) {
-    drawCheckInBox(243, 328, 22, 20); // Regular Leave
+  } else if (t.includes('اعتيادية') || t.includes('إعتيادية') || t.includes('تعويض')) {
+    drawCheckInBox(243, 328, 22, 20); // Regular Leave (تؤشر أيضاً للإجازة التعويضية)
   } else if (t.includes('مرضية')) {
     drawCheckInBox(400, 328, 22, 20); // Sick Leave
   } else if (t.includes('وفاة') || t.includes('عزاء')) {
