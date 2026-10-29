@@ -543,6 +543,32 @@ body {
           <input type="text" id="notes" class="app-input" placeholder="سبب الإجازة، تفاصيل إضافية...">
         </div>
 
+        <!-- مرفق اختياري (صورة تقرير طبي / كتاب رسمي) -->
+        <div class="input-group" style="margin-bottom:16px;">
+          <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>📎 مرفق الإجازة (صورة تقرير طبي / كتاب رسمي)</span>
+            <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label for="leaveAttachmentInput" class="btn btn-light" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; border:1.5px dashed #94a3b8; background:#f8fafc; padding:10px 14px; border-radius:10px; width:100%; font-weight:700; color:#334155; transition:all 0.2s;">
+              <span style="font-size:18px;">📷</span>
+              <span id="leaveAttachmentBtnText">إرفاق صورة (تقرير طبي، كتاب رسمي، إجازة مرضية...)</span>
+            </label>
+            <input type="file" id="leaveAttachmentInput" accept="image/*" style="display:none;" onchange="handleLeaveAttachment(event)">
+          </div>
+          <div id="attachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <img id="attachmentPreviewImg" src="" alt="المرفق" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1.5px solid #94a3b8; cursor:pointer;" onclick="openImageViewerModal(currentLeaveAttachment, 'معاينة المرفق قبل الحفظ', '')" title="انقر لتكبير الصورة">
+            <div style="flex:1; min-width:0;">
+              <div id="attachmentFileName" style="font-size:12.5px; font-weight:800; color:#0f172a; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
+              <div id="attachmentFileSize" style="font-size:11px; color:#64748b; font-weight:600; margin-top:2px;"></div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-sm btn-light" onclick="openImageViewerModal(currentLeaveAttachment, 'معاينة المرفق قبل الحفظ', '')" style="padding:5px 9px; font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd;">👁️ تكبير</button>
+              <button type="button" class="btn btn-sm btn-danger" onclick="clearLeaveAttachment()" style="padding:5px 9px; font-size:11px; font-weight:700;">❌ إزالة</button>
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex; flex-direction:column; gap:8px;">
           <button id="btn-save" class="btn btn-primary" onclick="saveData(false)">💾 حفظ وتسجيل الحركة</button>
           <button id="btn-save-pdf" class="btn btn-success" onclick="saveData(true)" style="background:#0f766e;">📄 حفظ وتصدير استمارة PDF فوراً</button>
@@ -867,6 +893,32 @@ body {
       <input type="text" id="editRecordNotes" class="app-input" placeholder="اكتب سبب الإجازة، تفاصيل إضافية...">
     </div>
 
+    <!-- مرفق اختياري (تعديل أو إضافة صورة) -->
+    <div class="input-group" style="margin-top:10px;">
+      <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>📎 مرفق الإجازة (صورة تقرير / كتاب رسمي)</span>
+        <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري</span>
+      </label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label for="editAttachmentInput" class="btn btn-light" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; border:1.5px dashed #94a3b8; background:#f8fafc; padding:10px 14px; border-radius:10px; width:100%; font-weight:700; color:#334155;">
+          <span style="font-size:18px;">📷</span>
+          <span id="editAttachmentBtnText">تغيير أو إضافة صورة مرفقة</span>
+        </label>
+        <input type="file" id="editAttachmentInput" accept="image/*" style="display:none;" onchange="handleEditAttachment(event)">
+      </div>
+      <div id="editAttachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; align-items:center; gap:12px;">
+        <img id="editAttachmentPreviewImg" src="" alt="المرفق" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1.5px solid #94a3b8; cursor:pointer;" onclick="openImageViewerModal(currentEditAttachment, 'مرفق الإجازة', '')" title="انقر لتكبير الصورة">
+        <div style="flex:1; min-width:0;">
+          <div id="editAttachmentFileName" style="font-size:12.5px; font-weight:800; color:#0f172a; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">صورة المرفق الحالية</div>
+          <div id="editAttachmentFileSize" style="font-size:11px; color:#64748b; font-weight:600; margin-top:2px;">انقر للتكبير بالحجم الكامل</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-sm btn-light" onclick="openImageViewerModal(currentEditAttachment, 'مرفق الإجازة', '')" style="padding:5px 9px; font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd;">👁️ تكبير</button>
+          <button type="button" class="btn btn-sm btn-danger" onclick="clearEditAttachment()" style="padding:5px 9px; font-size:11px; font-weight:700;">❌ إزالة</button>
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex; gap:10px; margin-top:16px;">
       <button class="btn btn-primary" onclick="saveEditedRecord()" style="flex:1;">💾 حفظ التعديل والمزامنة</button>
       <button class="btn btn-light" onclick="closeEditRecordModal()" style="flex:1;">إلغاء</button>
@@ -947,6 +999,15 @@ body {
       </div>
     </div>
 
+    <!-- شريط تنبيه إذا كان للإجازة مرفق صورة -->
+    <div id="pdfFormAttachmentBanner" style="display:none; margin-bottom:12px; background:#f0fdf4; border:1.5px solid #86efac; border-radius:10px; padding:8px 12px; align-items:center; justify-content:space-between; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">📎</span>
+        <span style="font-size:12.5px; font-weight:800; color:#15803d;">يوجد صورة مرفقة (تقرير طبي / كتاب رسمي) مع هذه الإجازة</span>
+      </div>
+      <button type="button" class="btn btn-sm" id="pdfFormAttachmentBtn" style="background:#16a34a; color:#fff; font-weight:700; font-size:11px; padding:5px 12px; border-radius:6px; border:none; cursor:pointer;">👁️ عرض المرفق</button>
+    </div>
+
     <!-- أزرار التحميل والطباعة -->
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <button class="btn btn-primary" onclick="downloadCurrentFormPdf()" style="flex:1; background:#0f766e;">📥 تنزيل ملف PDF جاهز</button>
@@ -956,6 +1017,38 @@ body {
     <!-- معاينة حية للفورمة الرسمية -->
     <div style="background:#e2e8f0; padding:10px; border-radius:12px; text-align:center; overflow:hidden;">
       <canvas id="officialFormCanvas" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة عرض صورة المرفق بالحجم الكامل (Lightbox) -->
+<div id="imageViewerModal" class="modal-overlay">
+  <div class="modal-sheet" style="max-width:720px; max-height:92vh; padding:18px; display:flex; flex-direction:column; gap:12px; border-radius:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid #e2e8f0; padding-bottom:10px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:24px;">📎</span>
+        <div>
+          <div style="font-weight:800; font-size:16px; color:#0f172a;" id="imageViewerTitle">مرفق الإجازة</div>
+          <div style="font-size:12px; color:#64748b; font-weight:600;" id="imageViewerSubtitle"></div>
+        </div>
+      </div>
+      <button class="btn btn-light btn-sm" onclick="closeImageViewerModal()" style="font-size:18px; padding:2px 10px; border-radius:8px;">✕</button>
+    </div>
+    
+    <div style="flex:1; overflow:auto; text-align:center; min-height:220px; max-height:65vh; background:#0f172a; border-radius:12px; padding:12px; display:flex; align-items:center; justify-content:center;">
+      <img id="imageViewerImg" src="" alt="المرفق" style="max-width:100%; max-height:60vh; object-fit:contain; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; padding-top:6px; border-top:1px solid #f1f5f9;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="downloadViewerImage()" style="background:#1d4ed8; color:#fff; font-weight:700; display:flex; align-items:center; gap:5px;">
+          <span>📥</span> <span>تحميل الصورة للجهاز</span>
+        </button>
+        <button class="btn btn-light btn-sm" onclick="openViewerImageInNewTab()" style="font-weight:700; display:flex; align-items:center; gap:5px;">
+          <span>🔗</span> <span>فتح في نافذة كاملة</span>
+        </button>
+      </div>
+      <button class="btn btn-light btn-sm" onclick="closeImageViewerModal()" style="font-weight:700; padding:6px 14px;">إغلاق</button>
     </div>
   </div>
 </div>
@@ -2075,6 +2168,158 @@ function returnToMainPageAfterPrint() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ==================== إدارة مرفقات الإجازة (صور تقارير طبية، كتب رسمية، وصولات) ====================
+let currentLeaveAttachment = '';
+let currentEditAttachment = '';
+let activeViewerImageUrl = '';
+
+// دالة ذكية لضغط وتحجيم الصور في المتصفح لضمان سرعة النظام والمزامنة السحابية الفورية
+function compressImageFile(file, maxWidth = 1000, maxHeight = 1000, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) {
+      return reject(new Error('الملف المحدد ليس صورة صالحة! يرجى اختيار ملف بصيغة (JPG, PNG, WEBP)'));
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('فشل قراءة ملف الصورة!'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('فشل معالجة الصورة!'));
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth || h > maxHeight) {
+          if (w / h > maxWidth / maxHeight) {
+            h = Math.round((h * maxWidth) / w);
+            w = maxWidth;
+          } else {
+            w = Math.round((w * maxHeight) / h);
+            h = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve({
+          dataUrl,
+          name: file.name,
+          sizeKb: Math.round(dataUrl.length * 3 / 4 / 1024)
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleLeaveAttachment(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const res = await compressImageFile(file);
+    currentLeaveAttachment = res.dataUrl;
+    const previewBox = document.getElementById('attachmentPreviewBox');
+    const previewImg = document.getElementById('attachmentPreviewImg');
+    const fileName = document.getElementById('attachmentFileName');
+    const fileSize = document.getElementById('attachmentFileSize');
+    if (previewBox && previewImg) {
+      previewImg.src = res.dataUrl;
+      if (fileName) fileName.textContent = res.name || 'صورة مرفقة';
+      if (fileSize) fileSize.textContent = `الحجم: ${res.sizeKb} KB (جاهزة للحفظ ✓)`;
+      previewBox.style.display = 'flex';
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function clearLeaveAttachment() {
+  currentLeaveAttachment = '';
+  const input = document.getElementById('leaveAttachmentInput');
+  if (input) input.value = '';
+  const previewBox = document.getElementById('attachmentPreviewBox');
+  if (previewBox) previewBox.style.display = 'none';
+}
+
+async function handleEditAttachment(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const res = await compressImageFile(file);
+    currentEditAttachment = res.dataUrl;
+    const previewBox = document.getElementById('editAttachmentPreviewBox');
+    const previewImg = document.getElementById('editAttachmentPreviewImg');
+    const fileName = document.getElementById('editAttachmentFileName');
+    const fileSize = document.getElementById('editAttachmentFileSize');
+    if (previewBox && previewImg) {
+      previewImg.src = res.dataUrl;
+      if (fileName) fileName.textContent = res.name || 'صورة مرفقة جديدة';
+      if (fileSize) fileSize.textContent = `الحجم: ${res.sizeKb} KB (سيتم حفظها عند النقر على حفظ التعديل ✓)`;
+      previewBox.style.display = 'flex';
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function clearEditAttachment() {
+  currentEditAttachment = '';
+  const input = document.getElementById('editAttachmentInput');
+  if (input) input.value = '';
+  const previewBox = document.getElementById('editAttachmentPreviewBox');
+  if (previewBox) previewBox.style.display = 'none';
+}
+
+function openImageViewerModal(recordIdOrDataUrl, title = 'مرفق الإجازة', subtitle = '') {
+  if (!recordIdOrDataUrl) return;
+  let imgUrl = recordIdOrDataUrl;
+  if (!imgUrl.startsWith('data:') && !imgUrl.startsWith('http') && !imgUrl.startsWith('blob:')) {
+    const rec = dbRecords.find(r => String(r.id) === String(recordIdOrDataUrl));
+    if (rec && rec.attachment) {
+      imgUrl = rec.attachment;
+      if (!subtitle && rec.worker) {
+        subtitle = `${rec.worker} - ${rec.type} (${rec.dateFrom || ''})`;
+      }
+    } else {
+      return alert('لا يوجد مرفق محفوظ لهذه الإجازة!');
+    }
+  }
+  activeViewerImageUrl = imgUrl;
+  const modal = document.getElementById('imageViewerModal');
+  const imgEl = document.getElementById('imageViewerImg');
+  const titleEl = document.getElementById('imageViewerTitle');
+  const subtitleEl = document.getElementById('imageViewerSubtitle');
+  if (imgEl) imgEl.src = imgUrl;
+  if (titleEl) titleEl.textContent = title || 'مرفق الإجازة';
+  if (subtitleEl) subtitleEl.textContent = subtitle || '';
+  if (modal) modal.classList.add('active');
+}
+
+function closeImageViewerModal() {
+  const modal = document.getElementById('imageViewerModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function downloadViewerImage() {
+  if (!activeViewerImageUrl) return;
+  const a = document.createElement('a');
+  a.href = activeViewerImageUrl;
+  a.download = `مرفق_إجازة_${Date.now()}.jpg`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function openViewerImageInNewTab() {
+  if (!activeViewerImageUrl) return;
+  const win = window.open();
+  if (win) {
+    win.document.write(`<title>مرفق الإجازة</title><body style="margin:0; background:#0f172a; display:flex; align-items:center; justify-content:center; height:100vh;"><img src="${activeViewerImageUrl}" style="max-width:98%; max-height:98%; object-fit:contain; box-shadow:0 0 20px rgba(0,0,0,0.5);"></body>`);
+  }
+}
+
 // حفظ حركة جديدة (وضع الحفظ العادي، أو الحفظ والطباعة الفورية، أو الحفظ وتصدير PDF)
 async function saveData(actionMode = false) {
   const btn = document.getElementById('btn-save');
@@ -2120,6 +2365,7 @@ async function saveData(actionMode = false) {
       dateTo,
       compDate: type === 'إجازة تعويضية' ? compDate : '',
       notes: finalNotes, 
+      attachment: currentLeaveAttachment || '',
       addedBy: addedByUser, 
       timestamp: new Date().toISOString(),
       status: 'pending',
@@ -2136,6 +2382,7 @@ async function saveData(actionMode = false) {
   pushToCloud();
 
   document.getElementById('notes').value = '';
+  clearLeaveAttachment();
   selectedWorkerNames.clear();
   document.querySelectorAll('#workerCheckboxes .worker-checkbox').forEach(c => {
     c.checked = false;
@@ -2291,7 +2538,19 @@ function renderRecords() {
           <span style="font-size:11px; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px; font-weight:700;">✍️ بواسطة: ${r.addedBy || 'المدير العام'}</span>
         </div>
         ${cleanNotes ? `<div class="record-notes">📝 ${cleanNotes}</div>` : ''}
+        ${r.attachment ? `
+          <div style="margin-top:6px; display:flex; align-items:center; gap:8px; background:#f0fdf4; border:1px solid #86efac; padding:6px 10px; border-radius:8px;">
+            <img src="${r.attachment}" alt="مرفق" style="width:34px; height:34px; object-fit:cover; border-radius:6px; border:1px solid #4ade80; cursor:pointer;" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" title="انقر لتكبير الصورة">
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:12px; font-weight:800; color:#15803d;">📎 يوجد صورة مرفقة (تقرير / كتاب رسمي)</div>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#16a34a; color:#fff; font-size:11px; padding:3px 10px; font-weight:700; border-radius:6px; border:none; cursor:pointer;">👁️ عرض المرفق</button>
+          </div>
+        ` : ''}
         <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; align-items:center;">
+          ${r.attachment ? `
+            <button class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; font-weight:800;">📎 المرفق</button>
+          ` : ''}
           ${isApprovalManager() ? (
             !isApproved ? 
               `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>` :
@@ -2390,12 +2649,29 @@ function openEditRecordModal(id) {
   const editCompEl = document.getElementById('editRecordCompDate');
   if (editCompEl) editCompEl.value = compD;
 
+  currentEditAttachment = rec.attachment || '';
+  const editPreviewBox = document.getElementById('editAttachmentPreviewBox');
+  const editPreviewImg = document.getElementById('editAttachmentPreviewImg');
+  const editFileName = document.getElementById('editAttachmentFileName');
+  const editFileSize = document.getElementById('editAttachmentFileSize');
+  const editInput = document.getElementById('editAttachmentInput');
+  if (editInput) editInput.value = '';
+  if (currentEditAttachment && editPreviewBox && editPreviewImg) {
+    editPreviewImg.src = currentEditAttachment;
+    if (editFileName) editFileName.textContent = 'مرفق الإجازة المحفوظ';
+    if (editFileSize) editFileSize.textContent = 'انقر للتكبير بالحجم الكامل';
+    editPreviewBox.style.display = 'flex';
+  } else if (editPreviewBox) {
+    editPreviewBox.style.display = 'none';
+  }
+
   toggleEditTimeInputs();
   updateTimeInputsPreview();
   document.getElementById('editRecordModal').classList.add('active');
 }
 
 function closeEditRecordModal() {
+  currentEditAttachment = '';
   document.getElementById('editRecordModal').classList.remove('active');
 }
 
@@ -2454,6 +2730,7 @@ function saveEditedRecord() {
     compDate,
     days,
     notes,
+    attachment: currentEditAttachment || '',
     lastEditedBy: currentUser ? (currentUser.displayName || currentUser.username) : 'المدير',
     lastEditedAt: new Date().toISOString()
   };
@@ -3125,6 +3402,19 @@ async function openPdfFormModal(recordId, autoDownload = false) {
   document.getElementById('pdfDeptInput').value = localStorage.getItem('default_pdf_dept') || 'BMH-HOTEL';
   document.getElementById('pdfAltEmpInput').value = '';
   document.getElementById('pdfManagerInput').value = localStorage.getItem('default_pdf_manager') || '';
+
+  const banner = document.getElementById('pdfFormAttachmentBanner');
+  const bannerBtn = document.getElementById('pdfFormAttachmentBtn');
+  if (banner) {
+    if (rec.attachment) {
+      banner.style.display = 'flex';
+      if (bannerBtn) {
+        bannerBtn.onclick = () => openImageViewerModal(rec.id, `مرفق: ${rec.worker}`, `${rec.type} - ${rec.dateFrom || ''}`);
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
 
   document.getElementById('pdfFormModal').classList.add('active');
   await refreshPdfPreviewCanvas();
