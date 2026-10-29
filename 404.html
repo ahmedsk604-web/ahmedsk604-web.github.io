@@ -2915,45 +2915,43 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
     drawCheckInBox(448, 374, 22, 20); // Unpaid Leave / غياب
   }
 
-  // 4. خانة (Leave Type / نوع الإجازة) - كل شيء يُذكر إلا الاستئذان بالساعات (زمنية) يُترك فارغاً تماماً
+  // 4. خانة (Leave Type / نوع الإجازة) - عند الكتابة في خانة ملاحظات إضافية تنضاف وتظهر هنا مباشرة
+  let leaveTypeText = '';
+  const rawNotes = record.notes || '';
+  const cleanUserNotes = rawNotes
+    .replace(/\[استئذان[^\]]*\]/gi, '')
+    .replace(/\[تعويض[^\]]*\]/gi, '')
+    .trim();
+
   const isZamaniya = t === 'زمنية' || t.includes('ساعات') || t.includes('استئذان');
-  if (!isZamaniya) {
-    let leaveTypeText = '';
-    if (t.includes('تعويض')) {
-      // إجازة تعويضية: ذكر تفاصيل التعويض وتاريخه والسبب بوضوح
-      let compDateStr = record.compDate || '';
-      const matchComp = (record.notes || '').match(/\[?تعويض\s*عن:?\s*([^\]\n]+)\]?/);
-      if (matchComp) {
-        compDateStr = matchComp[1].trim();
-      }
-      const userNotes = (record.notes || '')
-        .replace(/\[?تعويض\s*عن:?\s*[^\]\n]+\]?/g, '')
-        .replace(/\[[^\]]+\]/g, '')
-        .trim();
 
-      if (compDateStr && userNotes) {
-        leaveTypeText = `إجازة تعويضية (${compDateStr}) - ${userNotes}`;
-      } else if (compDateStr) {
-        leaveTypeText = `إجازة تعويضية (تعويض عن: ${compDateStr})`;
-      } else if (userNotes) {
-        leaveTypeText = `إجازة تعويضية - ${userNotes}`;
-      } else {
-        leaveTypeText = `إجازة تعويضية`;
-      }
-    } else {
-      // باقي أنواع الإجازات: يذكر سبب الإجازة إن كتبه، أو يذكر نوع الإجازة نفسه
-      const cleanNotes = (record.notes || '').replace(/\[استئذان[^\]]*\]/g, '').trim();
-      if (cleanNotes) {
-        leaveTypeText = cleanNotes;
-      } else if (record.type) {
-        leaveTypeText = record.type;
-      }
-    }
+  if (t.includes('تعويض')) {
+    // إجازة تعويضية: ذكر تفاصيل التعويض وتاريخه وأي ملاحظات إضافية كُتبت
+    let compDateStr = record.compDate || '';
+    const matchComp = rawNotes.match(/\[?تعويض\s*عن:?\s*([^\]\n]+)\]?/);
+    if (matchComp && !compDateStr) compDateStr = matchComp[1].trim();
 
-    if (leaveTypeText) {
-      const fontSize = leaveTypeText.length > 32 ? 11 : (leaveTypeText.length > 22 ? 12.5 : 13.5);
-      drawInRectCenter(leaveTypeText, 170, 420, 280, 20, fontSize, '#0f172a', '700', 'rtl');
+    const compHeader = compDateStr ? `إجازة تعويضية (تعويض عن: ${compDateStr})` : 'إجازة تعويضية';
+    leaveTypeText = cleanUserNotes ? `${compHeader} - ${cleanUserNotes}` : compHeader;
+  } else if (isZamaniya) {
+    // بالنسبة للزمنية: لا يُكتب اسم زمنية إطلاقاً، ولكن إذا كُتب سبب أو ملاحظة في خانة ملاحظات إضافية تظهر مباشرة هنا
+    if (cleanUserNotes) {
+      leaveTypeText = cleanUserNotes;
     }
+  } else {
+    // باقي الإجازات (اعتيادية، مرضية، زواج، سنوية...): إذا وُجدت ملاحظات إضافية تُضاف وتظهر
+    if (cleanUserNotes) {
+      leaveTypeText = (record.type && !cleanUserNotes.includes(record.type))
+        ? `${record.type} - ${cleanUserNotes}`
+        : cleanUserNotes;
+    } else if (record.type) {
+      leaveTypeText = record.type;
+    }
+  }
+
+  if (leaveTypeText) {
+    const fontSize = leaveTypeText.length > 40 ? 10.5 : (leaveTypeText.length > 25 ? 12 : 13.5);
+    drawInRectCenter(leaveTypeText, 170, 420, 280, 20, fontSize, '#0f172a', '700', 'rtl');
   }
 
   // 5. مربعات من (From) / إلى (To) / عدد الأيام أو الساعات (No. of Days / Hours) في سنتر المستطيل بالضبط
