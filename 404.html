@@ -543,29 +543,29 @@ body {
           <input type="text" id="notes" class="app-input" placeholder="سبب الإجازة، تفاصيل إضافية...">
         </div>
 
-        <!-- مرفق اختياري (صورة تقرير طبي / كتاب رسمي) -->
+        <!-- مرفق اختياري (صور تقارير طبية / كتب رسمية) -->
         <div class="input-group" style="margin-bottom:16px;">
           <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>📎 مرفق الإجازة (صورة تقرير طبي / كتاب رسمي)</span>
-            <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري</span>
+            <span>📎 مرفقات الإجازة (صور تقارير طبية / كتب رسمية)</span>
+            <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري (يمكن اختيار أكثر من صورة)</span>
           </label>
           <div style="display:flex; align-items:center; gap:8px;">
             <label for="leaveAttachmentInput" class="btn btn-light" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; border:1.5px dashed #94a3b8; background:#f8fafc; padding:10px 14px; border-radius:10px; width:100%; font-weight:700; color:#334155; transition:all 0.2s;">
               <span style="font-size:18px;">📷</span>
-              <span id="leaveAttachmentBtnText">إرفاق صورة (تقرير طبي، كتاب رسمي، إجازة مرضية...)</span>
+              <span id="leaveAttachmentBtnText">إرفاق صورة أو عدة صور (تقارير طبية، كتب، وصولات...)</span>
             </label>
-            <input type="file" id="leaveAttachmentInput" accept="image/*" style="display:none;" onchange="handleLeaveAttachment(event)">
+            <input type="file" id="leaveAttachmentInput" accept="image/*" multiple style="display:none;" onchange="handleLeaveAttachment(event)">
           </div>
-          <div id="attachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            <img id="attachmentPreviewImg" src="" alt="المرفق" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1.5px solid #94a3b8; cursor:pointer;" onclick="openImageViewerModal(currentLeaveAttachment, 'معاينة المرفق قبل الحفظ', '')" title="انقر لتكبير الصورة">
-            <div style="flex:1; min-width:0;">
-              <div id="attachmentFileName" style="font-size:12.5px; font-weight:800; color:#0f172a; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
-              <div id="attachmentFileSize" style="font-size:11px; color:#64748b; font-weight:600; margin-top:2px;"></div>
+          <!-- حاوية عرض مصغرات الصور المرفقة -->
+          <div id="attachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="attachmentCountBadge" style="font-size:12px; font-weight:800; color:#1e40af;"></span>
+              <div style="display:flex; gap:6px;">
+                <label for="leaveAttachmentInput" class="btn btn-sm btn-light" style="cursor:pointer; font-size:11px; font-weight:700; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 8px; border-radius:6px;">➕ إضافة المزيد</label>
+                <button type="button" class="btn btn-sm btn-danger" onclick="clearLeaveAttachment()" style="padding:4px 8px; font-size:11px; font-weight:700;">❌ إزالة الكل</button>
+              </div>
             </div>
-            <div style="display:flex; gap:6px;">
-              <button type="button" class="btn btn-sm btn-light" onclick="openImageViewerModal(currentLeaveAttachment, 'معاينة المرفق قبل الحفظ', '')" style="padding:5px 9px; font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd;">👁️ تكبير</button>
-              <button type="button" class="btn btn-sm btn-danger" onclick="clearLeaveAttachment()" style="padding:5px 9px; font-size:11px; font-weight:700;">❌ إزالة</button>
-            </div>
+            <div id="attachmentThumbnailsGrid" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
           </div>
         </div>
 
@@ -893,29 +893,28 @@ body {
       <input type="text" id="editRecordNotes" class="app-input" placeholder="اكتب سبب الإجازة، تفاصيل إضافية...">
     </div>
 
-    <!-- مرفق اختياري (تعديل أو إضافة صورة) -->
+    <!-- مرفقات اختيارية (تعديل أو إضافة صور) -->
     <div class="input-group" style="margin-top:10px;">
       <label class="input-label" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>📎 مرفق الإجازة (صورة تقرير / كتاب رسمي)</span>
-        <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري</span>
+        <span>📎 مرفقات الإجازة (صور تقارير / كتب رسمية)</span>
+        <span style="font-size:11px; color:#10b981; font-weight:800; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">اختياري (يمكن إضافة عدة صور)</span>
       </label>
       <div style="display:flex; align-items:center; gap:8px;">
         <label for="editAttachmentInput" class="btn btn-light" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; border:1.5px dashed #94a3b8; background:#f8fafc; padding:10px 14px; border-radius:10px; width:100%; font-weight:700; color:#334155;">
           <span style="font-size:18px;">📷</span>
-          <span id="editAttachmentBtnText">تغيير أو إضافة صورة مرفقة</span>
+          <span id="editAttachmentBtnText">إضافة أو تغيير صور المرفقات</span>
         </label>
-        <input type="file" id="editAttachmentInput" accept="image/*" style="display:none;" onchange="handleEditAttachment(event)">
+        <input type="file" id="editAttachmentInput" accept="image/*" multiple style="display:none;" onchange="handleEditAttachment(event)">
       </div>
-      <div id="editAttachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; align-items:center; gap:12px;">
-        <img id="editAttachmentPreviewImg" src="" alt="المرفق" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1.5px solid #94a3b8; cursor:pointer;" onclick="openImageViewerModal(currentEditAttachment, 'مرفق الإجازة', '')" title="انقر لتكبير الصورة">
-        <div style="flex:1; min-width:0;">
-          <div id="editAttachmentFileName" style="font-size:12.5px; font-weight:800; color:#0f172a; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">صورة المرفق الحالية</div>
-          <div id="editAttachmentFileSize" style="font-size:11px; color:#64748b; font-weight:600; margin-top:2px;">انقر للتكبير بالحجم الكامل</div>
+      <div id="editAttachmentPreviewBox" style="display:none; margin-top:10px; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span id="editAttachmentCountBadge" style="font-size:12px; font-weight:800; color:#1e40af;"></span>
+          <div style="display:flex; gap:6px;">
+            <label for="editAttachmentInput" class="btn btn-sm btn-light" style="cursor:pointer; font-size:11px; font-weight:700; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 8px; border-radius:6px;">➕ إضافة المزيد</label>
+            <button type="button" class="btn btn-sm btn-danger" onclick="clearEditAttachment()" style="padding:4px 8px; font-size:11px; font-weight:700;">❌ إزالة الكل</button>
+          </div>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button type="button" class="btn btn-sm btn-light" onclick="openImageViewerModal(currentEditAttachment, 'مرفق الإجازة', '')" style="padding:5px 9px; font-size:11px; font-weight:700; color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd;">👁️ تكبير</button>
-          <button type="button" class="btn btn-sm btn-danger" onclick="clearEditAttachment()" style="padding:5px 9px; font-size:11px; font-weight:700;">❌ إزالة</button>
-        </div>
+        <div id="editAttachmentThumbnailsGrid" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
       </div>
     </div>
 
@@ -1020,38 +1019,45 @@ body {
       <canvas id="officialFormCanvas" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
     </div>
 
-    <!-- معاينة حية للمرفق (صفحة 2) إن وجد -->
+    <!-- معاينة حية للمرفقات إن وجدت -->
     <div id="pdfAttachmentPreviewWrapper" style="display:none; margin-top:14px; background:#e2e8f0; padding:10px; border-radius:12px; text-align:center; overflow:hidden;">
-      <div style="font-weight:800; font-size:13px; color:#1e40af; margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
-        <span>📎 صفحة 2: مرفق الإجازة الرسمي (التقرير الطبي / الكتاب)</span>
-      </div>
-      <canvas id="officialAttachmentCanvas" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
+      <div id="pdfAttachmentsContainer"></div>
     </div>
   </div>
 </div>
 
 <!-- نافذة عرض صورة المرفق بالحجم الكامل (Lightbox) -->
 <div id="imageViewerModal" class="modal-overlay">
-  <div class="modal-sheet" style="max-width:720px; max-height:92vh; padding:18px; display:flex; flex-direction:column; gap:12px; border-radius:16px;">
+  <div class="modal-sheet" style="max-width:750px; max-height:94vh; padding:18px; display:flex; flex-direction:column; gap:12px; border-radius:16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid #e2e8f0; padding-bottom:10px;">
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:24px;">📎</span>
         <div>
-          <div style="font-weight:800; font-size:16px; color:#0f172a;" id="imageViewerTitle">مرفق الإجازة</div>
+          <div style="font-weight:800; font-size:16px; color:#0f172a;" id="imageViewerTitle">مرفقات الإجازة</div>
           <div style="font-size:12px; color:#64748b; font-weight:600;" id="imageViewerSubtitle"></div>
         </div>
       </div>
       <button class="btn btn-light btn-sm" onclick="closeImageViewerModal()" style="font-size:18px; padding:2px 10px; border-radius:8px;">✕</button>
     </div>
-    
-    <div style="flex:1; overflow:auto; text-align:center; min-height:220px; max-height:65vh; background:#0f172a; border-radius:12px; padding:12px; display:flex; align-items:center; justify-content:center;">
-      <img id="imageViewerImg" src="" alt="المرفق" style="max-width:100%; max-height:60vh; object-fit:contain; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+
+    <!-- شريط التنقل بين المرفقات إن وُجد أكثر من صورة -->
+    <div id="imageViewerNav" style="display:none; justify-content:space-between; align-items:center; background:#f1f5f9; padding:6px 12px; border-radius:8px;">
+      <button class="btn btn-sm btn-light" onclick="viewerPrevImage()" style="font-weight:700; color:#1e40af; border:1px solid #cbd5e1;">➡️ الصورة السابقة</button>
+      <span id="imageViewerCounter" style="font-size:12px; font-weight:800; color:#1e40af;"></span>
+      <button class="btn btn-sm btn-light" onclick="viewerNextImage()" style="font-weight:700; color:#1e40af; border:1px solid #cbd5e1;">الصورة التالية ⬅️</button>
     </div>
+    
+    <div style="flex:1; overflow:auto; text-align:center; min-height:220px; max-height:60vh; background:#0f172a; border-radius:12px; padding:12px; display:flex; align-items:center; justify-content:center;">
+      <img id="imageViewerImg" src="" alt="المرفق" style="max-width:100%; max-height:58vh; object-fit:contain; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+    </div>
+
+    <!-- شريط مصغرات للتنقل المباشر -->
+    <div id="imageViewerThumbs" style="display:flex; gap:6px; overflow-x:auto; padding:4px 0; justify-content:center;"></div>
 
     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; padding-top:6px; border-top:1px solid #f1f5f9;">
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="downloadViewerImage()" style="background:#1d4ed8; color:#fff; font-weight:700; display:flex; align-items:center; gap:5px;">
-          <span>📥</span> <span>تحميل الصورة للجهاز</span>
+          <span>📥</span> <span>تحميل الصورة الحالية</span>
         </button>
         <button class="btn btn-light btn-sm" onclick="openViewerImageInNewTab()" style="font-weight:700; display:flex; align-items:center; gap:5px;">
           <span>🔗</span> <span>فتح في نافذة كاملة</span>
@@ -2178,9 +2184,23 @@ function returnToMainPageAfterPrint() {
 }
 
 // ==================== إدارة مرفقات الإجازة (صور تقارير طبية، كتب رسمية، وصولات) ====================
-let currentLeaveAttachment = '';
-let currentEditAttachment = '';
+let currentLeaveAttachments = [];
+let currentEditAttachments = [];
+let activeViewerImages = [];
+let activeViewerIndex = 0;
 let activeViewerImageUrl = '';
+
+// دالة مساعدة لاستخراج مصفوفة المرفقات من أي سجل مع دعم التوافقية الكاملة
+function getRecordAttachments(rec) {
+  if (!rec) return [];
+  if (Array.isArray(rec.attachments) && rec.attachments.length > 0) {
+    return rec.attachments.filter(Boolean);
+  }
+  if (rec.attachment) {
+    return [rec.attachment];
+  }
+  return [];
+}
 
 // دالة ذكية لضغط وتحجيم الصور في المتصفح لضمان سرعة النظام والمزامنة السحابية الفورية
 function compressImageFile(file, maxWidth = 1000, maxHeight = 1000, quality = 0.75) {
@@ -2224,86 +2244,184 @@ function compressImageFile(file, maxWidth = 1000, maxHeight = 1000, quality = 0.
 }
 
 async function handleLeaveAttachment(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  try {
-    const res = await compressImageFile(file);
-    currentLeaveAttachment = res.dataUrl;
-    const previewBox = document.getElementById('attachmentPreviewBox');
-    const previewImg = document.getElementById('attachmentPreviewImg');
-    const fileName = document.getElementById('attachmentFileName');
-    const fileSize = document.getElementById('attachmentFileSize');
-    if (previewBox && previewImg) {
-      previewImg.src = res.dataUrl;
-      if (fileName) fileName.textContent = res.name || 'صورة مرفقة';
-      if (fileSize) fileSize.textContent = `الحجم: ${res.sizeKb} KB (جاهزة للحفظ ✓)`;
-      previewBox.style.display = 'flex';
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+  for (const file of files) {
+    try {
+      const res = await compressImageFile(file);
+      currentLeaveAttachments.push(res.dataUrl);
+    } catch (err) {
+      alert(err.message);
     }
-  } catch (err) {
-    alert(err.message);
   }
+  event.target.value = '';
+  renderLeaveAttachmentPreviews();
+}
+
+function removeLeaveAttachmentAt(index) {
+  currentLeaveAttachments.splice(index, 1);
+  renderLeaveAttachmentPreviews();
 }
 
 function clearLeaveAttachment() {
-  currentLeaveAttachment = '';
+  currentLeaveAttachments = [];
   const input = document.getElementById('leaveAttachmentInput');
   if (input) input.value = '';
+  renderLeaveAttachmentPreviews();
+}
+
+function renderLeaveAttachmentPreviews() {
   const previewBox = document.getElementById('attachmentPreviewBox');
-  if (previewBox) previewBox.style.display = 'none';
+  const countBadge = document.getElementById('attachmentCountBadge');
+  const grid = document.getElementById('attachmentThumbnailsGrid');
+  if (!previewBox || !grid) return;
+
+  if (currentLeaveAttachments.length === 0) {
+    previewBox.style.display = 'none';
+    grid.innerHTML = '';
+    return;
+  }
+
+  previewBox.style.display = 'flex';
+  if (countBadge) {
+    countBadge.textContent = `📎 تم إرفاق (${currentLeaveAttachments.length}) صور جاهزة للحفظ ✓`;
+  }
+  grid.innerHTML = currentLeaveAttachments.map((url, idx) => `
+    <div style="position:relative; width:64px; height:64px; border-radius:8px; border:1.5px solid #cbd5e1; overflow:hidden; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+      <img src="${url}" alt="مرفق ${idx + 1}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" onclick="openImageViewerModal(currentLeaveAttachments, 'معاينة المرفقات', '', ${idx})">
+      <button type="button" onclick="removeLeaveAttachmentAt(${idx})" style="position:absolute; top:2px; left:2px; width:18px; height:18px; background:rgba(220,38,38,0.9); color:#fff; border:none; border-radius:50%; font-size:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1;" title="حذف هذه الصورة">✕</button>
+      <span style="position:absolute; bottom:2px; right:2px; background:rgba(15,23,42,0.7); color:#fff; font-size:9px; font-weight:700; padding:1px 4px; border-radius:3px;">${idx + 1}</span>
+    </div>
+  `).join('');
 }
 
 async function handleEditAttachment(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  try {
-    const res = await compressImageFile(file);
-    currentEditAttachment = res.dataUrl;
-    const previewBox = document.getElementById('editAttachmentPreviewBox');
-    const previewImg = document.getElementById('editAttachmentPreviewImg');
-    const fileName = document.getElementById('editAttachmentFileName');
-    const fileSize = document.getElementById('editAttachmentFileSize');
-    if (previewBox && previewImg) {
-      previewImg.src = res.dataUrl;
-      if (fileName) fileName.textContent = res.name || 'صورة مرفقة جديدة';
-      if (fileSize) fileSize.textContent = `الحجم: ${res.sizeKb} KB (سيتم حفظها عند النقر على حفظ التعديل ✓)`;
-      previewBox.style.display = 'flex';
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+  for (const file of files) {
+    try {
+      const res = await compressImageFile(file);
+      currentEditAttachments.push(res.dataUrl);
+    } catch (err) {
+      alert(err.message);
     }
-  } catch (err) {
-    alert(err.message);
   }
+  event.target.value = '';
+  renderEditAttachmentPreviews();
+}
+
+function removeEditAttachmentAt(index) {
+  currentEditAttachments.splice(index, 1);
+  renderEditAttachmentPreviews();
 }
 
 function clearEditAttachment() {
-  currentEditAttachment = '';
+  currentEditAttachments = [];
   const input = document.getElementById('editAttachmentInput');
   if (input) input.value = '';
-  const previewBox = document.getElementById('editAttachmentPreviewBox');
-  if (previewBox) previewBox.style.display = 'none';
+  renderEditAttachmentPreviews();
 }
 
-function openImageViewerModal(recordIdOrDataUrl, title = 'مرفق الإجازة', subtitle = '') {
-  if (!recordIdOrDataUrl) return;
-  let imgUrl = recordIdOrDataUrl;
-  if (!imgUrl.startsWith('data:') && !imgUrl.startsWith('http') && !imgUrl.startsWith('blob:')) {
-    const rec = dbRecords.find(r => String(r.id) === String(recordIdOrDataUrl));
-    if (rec && rec.attachment) {
-      imgUrl = rec.attachment;
-      if (!subtitle && rec.worker) {
-        subtitle = `${rec.worker} - ${rec.type} (${rec.dateFrom || ''})`;
-      }
+function renderEditAttachmentPreviews() {
+  const previewBox = document.getElementById('editAttachmentPreviewBox');
+  const countBadge = document.getElementById('editAttachmentCountBadge');
+  const grid = document.getElementById('editAttachmentThumbnailsGrid');
+  if (!previewBox || !grid) return;
+
+  if (currentEditAttachments.length === 0) {
+    previewBox.style.display = 'none';
+    grid.innerHTML = '';
+    return;
+  }
+
+  previewBox.style.display = 'flex';
+  if (countBadge) {
+    countBadge.textContent = `📎 عدد المرفقات الحالية: (${currentEditAttachments.length}) صور`;
+  }
+  grid.innerHTML = currentEditAttachments.map((url, idx) => `
+    <div style="position:relative; width:64px; height:64px; border-radius:8px; border:1.5px solid #cbd5e1; overflow:hidden; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+      <img src="${url}" alt="مرفق ${idx + 1}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" onclick="openImageViewerModal(currentEditAttachments, 'مرفقات الإجازة', '', ${idx})">
+      <button type="button" onclick="removeEditAttachmentAt(${idx})" style="position:absolute; top:2px; left:2px; width:18px; height:18px; background:rgba(220,38,38,0.9); color:#fff; border:none; border-radius:50%; font-size:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1;" title="حذف هذه الصورة">✕</button>
+      <span style="position:absolute; bottom:2px; right:2px; background:rgba(15,23,42,0.7); color:#fff; font-size:9px; font-weight:700; padding:1px 4px; border-radius:3px;">${idx + 1}</span>
+    </div>
+  `).join('');
+}
+
+function openImageViewerModal(recordIdOrArray, title = 'مرفق الإجازة', subtitle = '', startIndex = 0) {
+  let images = [];
+  if (Array.isArray(recordIdOrArray)) {
+    images = recordIdOrArray.filter(Boolean);
+  } else if (typeof recordIdOrArray === 'string') {
+    if (recordIdOrArray.startsWith('data:') || recordIdOrArray.startsWith('http') || recordIdOrArray.startsWith('blob:')) {
+      images = [recordIdOrArray];
     } else {
-      return alert('لا يوجد مرفق محفوظ لهذه الإجازة!');
+      const rec = dbRecords.find(r => String(r.id) === String(recordIdOrArray));
+      if (rec) {
+        images = getRecordAttachments(rec);
+        if (!subtitle && rec.worker) {
+          subtitle = `${rec.worker} - ${rec.type} (${rec.dateFrom || ''})`;
+        }
+      }
     }
   }
-  activeViewerImageUrl = imgUrl;
+
+  if (images.length === 0) {
+    return alert('لا توجد صور مرفقة لعرضها!');
+  }
+
+  activeViewerImages = images;
+  activeViewerIndex = Math.max(0, Math.min(startIndex, images.length - 1));
+
   const modal = document.getElementById('imageViewerModal');
-  const imgEl = document.getElementById('imageViewerImg');
   const titleEl = document.getElementById('imageViewerTitle');
   const subtitleEl = document.getElementById('imageViewerSubtitle');
-  if (imgEl) imgEl.src = imgUrl;
   if (titleEl) titleEl.textContent = title || 'مرفق الإجازة';
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
+
+  updateViewerImageDisplay();
   if (modal) modal.classList.add('active');
+}
+
+function updateViewerImageDisplay() {
+  if (activeViewerImages.length === 0) return;
+  const currentImg = activeViewerImages[activeViewerIndex];
+  activeViewerImageUrl = currentImg;
+  const imgEl = document.getElementById('imageViewerImg');
+  if (imgEl) imgEl.src = currentImg;
+
+  const nav = document.getElementById('imageViewerNav');
+  const counter = document.getElementById('imageViewerCounter');
+  const thumbs = document.getElementById('imageViewerThumbs');
+
+  if (activeViewerImages.length > 1) {
+    if (nav) nav.style.display = 'flex';
+    if (counter) counter.textContent = `صورة ${activeViewerIndex + 1} من أصل ${activeViewerImages.length}`;
+    if (thumbs) {
+      thumbs.innerHTML = activeViewerImages.map((u, i) => `
+        <img src="${u}" style="width:42px; height:42px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${i === activeViewerIndex ? '#2563eb' : '#cbd5e1'}; opacity:${i === activeViewerIndex ? '1' : '0.6'};" onclick="viewerGoToImage(${i})">
+      `).join('');
+    }
+  } else {
+    if (nav) nav.style.display = 'none';
+    if (thumbs) thumbs.innerHTML = '';
+  }
+}
+
+function viewerNextImage() {
+  if (activeViewerImages.length <= 1) return;
+  activeViewerIndex = (activeViewerIndex + 1) % activeViewerImages.length;
+  updateViewerImageDisplay();
+}
+
+function viewerPrevImage() {
+  if (activeViewerImages.length <= 1) return;
+  activeViewerIndex = (activeViewerIndex - 1 + activeViewerImages.length) % activeViewerImages.length;
+  updateViewerImageDisplay();
+}
+
+function viewerGoToImage(idx) {
+  activeViewerIndex = idx;
+  updateViewerImageDisplay();
 }
 
 function closeImageViewerModal() {
@@ -2374,7 +2492,8 @@ async function saveData(actionMode = false) {
       dateTo,
       compDate: type === 'إجازة تعويضية' ? compDate : '',
       notes: finalNotes, 
-      attachment: currentLeaveAttachment || '',
+      attachment: currentLeaveAttachments[0] || '',
+      attachments: [...currentLeaveAttachments],
       addedBy: addedByUser, 
       timestamp: new Date().toISOString(),
       status: 'pending',
@@ -2547,19 +2666,35 @@ function renderRecords() {
           <span style="font-size:11px; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px; font-weight:700;">✍️ بواسطة: ${r.addedBy || 'المدير العام'}</span>
         </div>
         ${cleanNotes ? `<div class="record-notes">📝 ${cleanNotes}</div>` : ''}
-        ${r.attachment ? `
-          <div style="margin-top:6px; display:flex; align-items:center; gap:8px; background:#f0fdf4; border:1px solid #86efac; padding:6px 10px; border-radius:8px;">
-            <img src="${r.attachment}" alt="مرفق" style="width:34px; height:34px; object-fit:cover; border-radius:6px; border:1px solid #4ade80; cursor:pointer;" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" title="انقر لتكبير الصورة">
-            <div style="flex:1; min-width:0;">
-              <div style="font-size:12px; font-weight:800; color:#15803d;">📎 يوجد صورة مرفقة (تقرير / كتاب رسمي)</div>
+        ${(() => {
+          const recAttachments = getRecordAttachments(r);
+          if (recAttachments.length === 0) return '';
+          return `
+            <div style="margin-top:6px; display:flex; flex-direction:column; gap:6px; background:#f0fdf4; border:1px solid #86efac; padding:8px 10px; border-radius:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px; font-weight:800; color:#15803d; display:flex; align-items:center; gap:5px;">
+                  <span>📎</span> <span>المرفقات الرسمية (${recAttachments.length} ${recAttachments.length === 1 ? 'صورة' : 'صور'})</span>
+                </span>
+                <button type="button" class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفقات: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#16a34a; color:#fff; font-size:11px; padding:3px 10px; font-weight:700; border-radius:6px; border:none; cursor:pointer;">👁️ عرض الكل (${recAttachments.length})</button>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">
+                ${recAttachments.map((imgUrl, imgIdx) => `
+                  <div style="position:relative; width:40px; height:40px; border-radius:6px; border:1px solid #4ade80; overflow:hidden; background:#fff; cursor:pointer;" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}', ${imgIdx})" title="انقر لتكبير صورة المرفق (${imgIdx + 1})">
+                    <img src="${imgUrl}" alt="مرفق ${imgIdx + 1}" style="width:100%; height:100%; object-fit:cover;">
+                    <span style="position:absolute; bottom:1px; right:1px; background:rgba(0,0,0,0.65); color:#fff; font-size:8px; font-weight:700; padding:0 3px; border-radius:2px;">${imgIdx + 1}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
-            <button type="button" class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#16a34a; color:#fff; font-size:11px; padding:3px 10px; font-weight:700; border-radius:6px; border:none; cursor:pointer;">👁️ عرض المرفق</button>
-          </div>
-        ` : ''}
+          `;
+        })()}
         <div class="record-actions" style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; align-items:center;">
-          ${r.attachment ? `
-            <button class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفق: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; font-weight:800;">📎 المرفق</button>
-          ` : ''}
+          ${(() => {
+            const recAttachments = getRecordAttachments(r);
+            return recAttachments.length > 0 ? `
+              <button class="btn btn-sm" onclick="openImageViewerModal('${r.id}', 'مرفقات: ${r.worker}', '${r.type} - ${dateStr}')" style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; font-weight:800;">📎 المرفقات (${recAttachments.length})</button>
+            ` : '';
+          })()}
           ${isApprovalManager() ? (
             !isApproved ? 
               `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>` :
@@ -2658,21 +2793,10 @@ function openEditRecordModal(id) {
   const editCompEl = document.getElementById('editRecordCompDate');
   if (editCompEl) editCompEl.value = compD;
 
-  currentEditAttachment = rec.attachment || '';
-  const editPreviewBox = document.getElementById('editAttachmentPreviewBox');
-  const editPreviewImg = document.getElementById('editAttachmentPreviewImg');
-  const editFileName = document.getElementById('editAttachmentFileName');
-  const editFileSize = document.getElementById('editAttachmentFileSize');
+  currentEditAttachments = [...getRecordAttachments(rec)];
   const editInput = document.getElementById('editAttachmentInput');
   if (editInput) editInput.value = '';
-  if (currentEditAttachment && editPreviewBox && editPreviewImg) {
-    editPreviewImg.src = currentEditAttachment;
-    if (editFileName) editFileName.textContent = 'مرفق الإجازة المحفوظ';
-    if (editFileSize) editFileSize.textContent = 'انقر للتكبير بالحجم الكامل';
-    editPreviewBox.style.display = 'flex';
-  } else if (editPreviewBox) {
-    editPreviewBox.style.display = 'none';
-  }
+  renderEditAttachmentPreviews();
 
   toggleEditTimeInputs();
   updateTimeInputsPreview();
@@ -2680,7 +2804,7 @@ function openEditRecordModal(id) {
 }
 
 function closeEditRecordModal() {
-  currentEditAttachment = '';
+  currentEditAttachments = [];
   document.getElementById('editRecordModal').classList.remove('active');
 }
 
@@ -2739,7 +2863,8 @@ function saveEditedRecord() {
     compDate,
     days,
     notes,
-    attachment: currentEditAttachment || '',
+    attachment: currentEditAttachments[0] || '',
+    attachments: [...currentEditAttachments],
     lastEditedBy: currentUser ? (currentUser.displayName || currentUser.username) : 'المدير',
     lastEditedAt: new Date().toISOString()
   };
@@ -3453,18 +3578,44 @@ async function refreshPdfPreviewCanvas() {
   const canvas = document.getElementById('officialFormCanvas');
   await renderRecordOnFormCanvas(canvas, rec, { dept, altEmp, managerName });
 
-  // صفحة 2: معاينة المرفق الرسمي إن وجد
+  // صفحات المرفقات الرسمية (صفحة 2 وما بعدها) إن وجدت
   const attachWrapper = document.getElementById('pdfAttachmentPreviewWrapper');
-  const attachCanvas = document.getElementById('officialAttachmentCanvas');
-  if (rec.attachment && attachWrapper && attachCanvas) {
+  const attachContainer = document.getElementById('pdfAttachmentsContainer');
+  const attachments = getRecordAttachments(rec);
+
+  if (attachments.length > 0 && attachWrapper && attachContainer) {
     attachWrapper.style.display = 'block';
-    await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+    attachContainer.innerHTML = '';
+
+    for (let i = 0; i < attachments.length; i++) {
+      const pageDiv = document.createElement('div');
+      pageDiv.style.marginBottom = i === attachments.length - 1 ? '0' : '16px';
+      pageDiv.innerHTML = `
+        <div style="font-weight:800; font-size:12px; color:#475569; margin-bottom:6px;">
+          📄 صفحة ${i + 2}: المرفق الرسمي ${attachments.length > 1 ? `(${i + 1} من ${attachments.length})` : ''}
+        </div>
+        <canvas id="officialAttachmentCanvas_${i}" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
+      `;
+      attachContainer.appendChild(pageDiv);
+
+      const aCanvas = document.getElementById(`officialAttachmentCanvas_${i}`);
+      if (aCanvas) {
+        await renderAttachmentOnA4Canvas(aCanvas, rec, {
+          dept,
+          managerName,
+          attachmentUrl: attachments[i],
+          attachmentIndex: i,
+          totalAttachments: attachments.length
+        });
+      }
+    }
   } else if (attachWrapper) {
     attachWrapper.style.display = 'none';
+    if (attachContainer) attachContainer.innerHTML = '';
   }
 }
 
-// دالة رسم وتجهيز صفحة المرفق الرسمي A4 (Page 2) بدقة عالية 1446x2048 للطباعة والـ PDF والمعاينة
+// دالة رسم وتجهيز صفحة المرفق الرسمي A4 بدقة عالية 1446x2048 للطباعة والـ PDF والمعاينة
 async function renderAttachmentOnA4Canvas(canvas, record, extraOpts = {}) {
   canvas.width = 1446;
   canvas.height = 2048;
@@ -3492,18 +3643,22 @@ async function renderAttachmentOnA4Canvas(canvas, record, extraOpts = {}) {
   ctx.lineWidth = 2;
   ctx.strokeRect(headerX, headerY, headerW, headerH);
 
+  const isMultiple = (extraOpts.totalAttachments && extraOpts.totalAttachments > 1);
+  const pageIdxStr = isMultiple ? ` (مرفق ${(extraOpts.attachmentIndex || 0) + 1} من ${extraOpts.totalAttachments})` : '';
+  const engIdxStr = isMultiple ? ` (${(extraOpts.attachmentIndex || 0) + 1}/${extraOpts.totalAttachments})` : '';
+
   // عنوان الترويسة عربي وإنجليزي
   ctx.direction = 'rtl';
   ctx.textAlign = 'right';
   ctx.fillStyle = '#1e3a8a';
   ctx.font = 'bold 34px "Cairo", "Tahoma", Arial, sans-serif';
-  ctx.fillText('📋 استمارة مرفق إجازة / غياب رسمي', headerX + headerW - 30, headerY + 52);
+  ctx.fillText(`📋 استمارة مرفق إجازة / غياب رسمي${pageIdxStr}`, headerX + headerW - 30, headerY + 52);
 
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#475569';
   ctx.font = 'bold 20px "Cairo", "Tahoma", Arial, sans-serif';
-  ctx.fillText('BMH - OFFICIAL LEAVE ATTACHMENT', headerX + 30, headerY + 48);
+  ctx.fillText(`BMH - OFFICIAL LEAVE ATTACHMENT${engIdxStr}`, headerX + 30, headerY + 48);
 
   // خط فاصل داخلي
   ctx.strokeStyle = '#cbd5e1';
@@ -3553,14 +3708,16 @@ async function renderAttachmentOnA4Canvas(canvas, record, extraOpts = {}) {
   ctx.lineWidth = 2;
   ctx.strokeRect(imgBoxX, imgBoxY, imgBoxW, imgBoxH);
 
+  const attachSrc = extraOpts.attachmentUrl || record.attachment || (getRecordAttachments(record)[0] || '');
+
   // تحميل ورسم صورة المرفق وتوسيطها بنسبة العرض إلى الارتفاع الصحيحة
-  if (record.attachment) {
+  if (attachSrc) {
     try {
       const img = new Image();
       await new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
-        img.src = record.attachment;
+        img.src = attachSrc;
       });
 
       if (img.width && img.height) {
@@ -3598,7 +3755,10 @@ async function renderAttachmentOnA4Canvas(canvas, record, extraOpts = {}) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#64748b';
   ctx.font = 'bold 20px "Cairo", "Tahoma", Arial, sans-serif';
-  ctx.fillText('📷 صورة المرفق الرسمي (تقرير طبي / كتاب رسمي / وصل) المعتمدة بالنظام', canvas.width / 2, imgBoxY + imgBoxH - 16);
+  const captionText = isMultiple
+    ? `📷 صورة المرفق الرسمي (${(extraOpts.attachmentIndex || 0) + 1} من ${extraOpts.totalAttachments}) المعتمدة بالنظام`
+    : '📷 صورة المرفق الرسمي (تقرير طبي / كتاب رسمي / وصل) المعتمدة بالنظام';
+  ctx.fillText(captionText, canvas.width / 2, imgBoxY + imgBoxH - 16);
 }
 
 async function downloadCurrentFormPdf() {
@@ -3608,10 +3768,11 @@ async function downloadCurrentFormPdf() {
   const canvas = document.getElementById('officialFormCanvas');
   const jpegs = [canvas.toDataURL('image/jpeg', 0.94)];
 
-  if (rec.attachment) {
-    const attachCanvas = document.getElementById('officialAttachmentCanvas');
-    if (attachCanvas) {
-      jpegs.push(attachCanvas.toDataURL('image/jpeg', 0.94));
+  const attachments = getRecordAttachments(rec);
+  for (let i = 0; i < attachments.length; i++) {
+    const aCanvas = document.getElementById(`officialAttachmentCanvas_${i}`);
+    if (aCanvas) {
+      jpegs.push(aCanvas.toDataURL('image/jpeg', 0.94));
     }
   }
 
@@ -3669,8 +3830,15 @@ async function printRecordsListToA4(recordsList, customOpts = {}) {
     await renderRecordOnFormCanvas(offCanvas, rec, { dept, altEmp, managerName });
     dataUrls.push(offCanvas.toDataURL('image/jpeg', 0.96));
 
-    if (rec.attachment) {
-      await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+    const attachments = getRecordAttachments(rec);
+    for (let i = 0; i < attachments.length; i++) {
+      await renderAttachmentOnA4Canvas(attachCanvas, rec, {
+        dept,
+        managerName,
+        attachmentUrl: attachments[i],
+        attachmentIndex: i,
+        totalAttachments: attachments.length
+      });
       dataUrls.push(attachCanvas.toDataURL('image/jpeg', 0.96));
     }
   }
@@ -3684,10 +3852,13 @@ async function printCurrentFormPdf() {
   const canvas = document.getElementById('officialFormCanvas');
   const dataUrls = [canvas.toDataURL('image/jpeg', 0.96)];
 
-  if (rec && rec.attachment) {
-    const attachCanvas = document.getElementById('officialAttachmentCanvas');
-    if (attachCanvas) {
-      dataUrls.push(attachCanvas.toDataURL('image/jpeg', 0.96));
+  if (rec) {
+    const attachments = getRecordAttachments(rec);
+    for (let i = 0; i < attachments.length; i++) {
+      const aCanvas = document.getElementById(`officialAttachmentCanvas_${i}`);
+      if (aCanvas) {
+        dataUrls.push(aCanvas.toDataURL('image/jpeg', 0.96));
+      }
     }
   }
 
@@ -3743,8 +3914,15 @@ async function exportRecordsListToPdf(recordsList, filename) {
     await renderRecordOnFormCanvas(offCanvas, rec, { dept, managerName });
     jpegs.push(offCanvas.toDataURL('image/jpeg', 0.92));
 
-    if (rec.attachment) {
-      await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+    const attachments = getRecordAttachments(rec);
+    for (let i = 0; i < attachments.length; i++) {
+      await renderAttachmentOnA4Canvas(attachCanvas, rec, {
+        dept,
+        managerName,
+        attachmentUrl: attachments[i],
+        attachmentIndex: i,
+        totalAttachments: attachments.length
+      });
       jpegs.push(attachCanvas.toDataURL('image/jpeg', 0.92));
     }
   }
