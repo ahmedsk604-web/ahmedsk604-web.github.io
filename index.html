@@ -1016,7 +1016,16 @@ body {
 
     <!-- معاينة حية للفورمة الرسمية -->
     <div style="background:#e2e8f0; padding:10px; border-radius:12px; text-align:center; overflow:hidden;">
+      <div style="font-weight:800; font-size:12px; color:#475569; margin-bottom:6px;">📄 صفحة 1: الاستمارة الرسمية</div>
       <canvas id="officialFormCanvas" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
+    </div>
+
+    <!-- معاينة حية للمرفق (صفحة 2) إن وجد -->
+    <div id="pdfAttachmentPreviewWrapper" style="display:none; margin-top:14px; background:#e2e8f0; padding:10px; border-radius:12px; text-align:center; overflow:hidden;">
+      <div style="font-weight:800; font-size:13px; color:#1e40af; margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
+        <span>📎 صفحة 2: مرفق الإجازة الرسمي (التقرير الطبي / الكتاب)</span>
+      </div>
+      <canvas id="officialAttachmentCanvas" width="1446" height="2048" style="width:100%; max-width:520px; height:auto; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); background:#fff;"></canvas>
     </div>
   </div>
 </div>
@@ -3440,8 +3449,156 @@ async function refreshPdfPreviewCanvas() {
   localStorage.setItem('default_pdf_dept', dept);
   if (managerName) localStorage.setItem('default_pdf_manager', managerName);
 
+  // صفحة 1: الاستمارة الرسمية
   const canvas = document.getElementById('officialFormCanvas');
   await renderRecordOnFormCanvas(canvas, rec, { dept, altEmp, managerName });
+
+  // صفحة 2: معاينة المرفق الرسمي إن وجد
+  const attachWrapper = document.getElementById('pdfAttachmentPreviewWrapper');
+  const attachCanvas = document.getElementById('officialAttachmentCanvas');
+  if (rec.attachment && attachWrapper && attachCanvas) {
+    attachWrapper.style.display = 'block';
+    await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+  } else if (attachWrapper) {
+    attachWrapper.style.display = 'none';
+  }
+}
+
+// دالة رسم وتجهيز صفحة المرفق الرسمي A4 (Page 2) بدقة عالية 1446x2048 للطباعة والـ PDF والمعاينة
+async function renderAttachmentOnA4Canvas(canvas, record, extraOpts = {}) {
+  canvas.width = 1446;
+  canvas.height = 2048;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // خلفية بيضاء نقية A4
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // إطار خارجي أنيق للصفحة
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
+
+  // ترويسة الصفحة الرسمية
+  const headerX = 60;
+  const headerY = 60;
+  const headerW = canvas.width - 120;
+  const headerH = 220;
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(headerX, headerY, headerW, headerH);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(headerX, headerY, headerW, headerH);
+
+  // عنوان الترويسة عربي وإنجليزي
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#1e3a8a';
+  ctx.font = 'bold 34px "Cairo", "Tahoma", Arial, sans-serif';
+  ctx.fillText('📋 استمارة مرفق إجازة / غياب رسمي', headerX + headerW - 30, headerY + 52);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 20px "Cairo", "Tahoma", Arial, sans-serif';
+  ctx.fillText('BMH - OFFICIAL LEAVE ATTACHMENT', headerX + 30, headerY + 48);
+
+  // خط فاصل داخلي
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(headerX + 20, headerY + 74);
+  ctx.lineTo(headerX + headerW - 20, headerY + 74);
+  ctx.stroke();
+
+  // تفاصيل الموظف والإجازة
+  const dept = extraOpts.dept || localStorage.getItem('default_pdf_dept') || 'BMH-HOTEL';
+  const role = record.role || 'عامل';
+  const worker = record.worker || '';
+  const type = record.type || 'إجازة';
+  let dateStr = record.dateTo ? `${record.dateFrom} إلى ${record.dateTo}` : (record.dateFrom || '');
+  if (record.type === 'زمنية' && (record.timeFrom || record.timeTo)) {
+    dateStr = `${record.dateFrom || ''} (من ${formatTimeWithAmPm(record.timeFrom)} إلى ${formatTimeWithAmPm(record.timeTo)})`;
+  }
+  const cleanNotes = (record.notes || '').replace(/\[استئذان[^\]]*\]/gi, '').replace(/\[تعويض[^\]]*\]/gi, '').trim();
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+
+  // سطر 1: اسم الموظف والقسم
+  ctx.font = 'bold 25px "Cairo", "Tahoma", Arial, sans-serif';
+  ctx.fillText(`اسم الموظف: ${worker}`, headerX + headerW - 30, headerY + 118);
+
+  ctx.font = '600 22px "Cairo", "Tahoma", Arial, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText(`القسم: ${dept}   |   المسمى الوظيفي: ${role}`, headerX + headerW - 30, headerY + 158);
+
+  // سطر 2: نوع الإجازة وتفاصيل التاريخ والملاحظات
+  let detailsText = `نوع الحركة: ${type}   |   التاريخ: ${dateStr}`;
+  if (cleanNotes) detailsText += `   |   الملاحظات: ${cleanNotes}`;
+  ctx.fillText(detailsText, headerX + headerW - 30, headerY + 196);
+
+  // إطار صورة المرفق الكبير
+  const imgBoxX = 60;
+  const imgBoxY = 305;
+  const imgBoxW = canvas.width - 120;
+  const imgBoxH = canvas.height - 305 - 60;
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(imgBoxX, imgBoxY, imgBoxW, imgBoxH);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(imgBoxX, imgBoxY, imgBoxW, imgBoxH);
+
+  // تحميل ورسم صورة المرفق وتوسيطها بنسبة العرض إلى الارتفاع الصحيحة
+  if (record.attachment) {
+    try {
+      const img = new Image();
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+        img.src = record.attachment;
+      });
+
+      if (img.width && img.height) {
+        const padding = 20;
+        const maxDrawW = imgBoxW - padding * 2;
+        const maxDrawH = imgBoxH - padding * 2 - 40;
+
+        const scale = Math.min(maxDrawW / img.width, maxDrawH / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+
+        const drawX = imgBoxX + (imgBoxW - drawW) / 2;
+        const drawY = imgBoxY + padding + (maxDrawH - drawH) / 2;
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(drawX, drawY, drawW, drawH);
+        ctx.restore();
+
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(drawX, drawY, drawW, drawH);
+      }
+    } catch (e) {}
+  }
+
+  // كابشن أسفل الإطار
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 20px "Cairo", "Tahoma", Arial, sans-serif';
+  ctx.fillText('📷 صورة المرفق الرسمي (تقرير طبي / كتاب رسمي / وصل) المعتمدة بالنظام', canvas.width / 2, imgBoxY + imgBoxH - 16);
 }
 
 async function downloadCurrentFormPdf() {
@@ -3449,8 +3606,16 @@ async function downloadCurrentFormPdf() {
   if (!rec) return;
   await refreshPdfPreviewCanvas();
   const canvas = document.getElementById('officialFormCanvas');
-  const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.94);
-  const pdfBlob = buildPdfFromJpegs([jpegDataUrl]);
+  const jpegs = [canvas.toDataURL('image/jpeg', 0.94)];
+
+  if (rec.attachment) {
+    const attachCanvas = document.getElementById('officialAttachmentCanvas');
+    if (attachCanvas) {
+      jpegs.push(attachCanvas.toDataURL('image/jpeg', 0.94));
+    }
+  }
+
+  const pdfBlob = buildPdfFromJpegs(jpegs);
   const safeName = (rec.worker || 'موظف').replace(/\s+/g, '_');
   const safeDate = rec.dateFrom || new Date().toISOString().slice(0, 10);
   triggerPdfDownload(pdfBlob, `استمارة_إجازة_${safeName}_${safeDate}.pdf`);
@@ -3494,6 +3659,7 @@ async function printRecordsListToA4(recordsList, customOpts = {}) {
     return alert('يرجى تحديد حركة واحدة على الأقل للطباعة!');
   }
   const offCanvas = document.createElement('canvas');
+  const attachCanvas = document.createElement('canvas');
   const dataUrls = [];
   const dept = customOpts.dept || localStorage.getItem('default_pdf_dept') || 'BMH-HOTEL';
   const altEmp = customOpts.altEmp || '';
@@ -3502,6 +3668,11 @@ async function printRecordsListToA4(recordsList, customOpts = {}) {
   for (const rec of recordsList) {
     await renderRecordOnFormCanvas(offCanvas, rec, { dept, altEmp, managerName });
     dataUrls.push(offCanvas.toDataURL('image/jpeg', 0.96));
+
+    if (rec.attachment) {
+      await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+      dataUrls.push(attachCanvas.toDataURL('image/jpeg', 0.96));
+    }
   }
 
   await executeInPagePrintWithDataUrls(dataUrls);
@@ -3509,9 +3680,18 @@ async function printRecordsListToA4(recordsList, customOpts = {}) {
 
 async function printCurrentFormPdf() {
   await refreshPdfPreviewCanvas();
+  const rec = dbRecords.find(r => String(r.id) === String(currentPdfRecordId));
   const canvas = document.getElementById('officialFormCanvas');
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
-  await executeInPagePrintWithDataUrls([dataUrl]);
+  const dataUrls = [canvas.toDataURL('image/jpeg', 0.96)];
+
+  if (rec && rec.attachment) {
+    const attachCanvas = document.getElementById('officialAttachmentCanvas');
+    if (attachCanvas) {
+      dataUrls.push(attachCanvas.toDataURL('image/jpeg', 0.96));
+    }
+  }
+
+  await executeInPagePrintWithDataUrls(dataUrls);
 }
 
 async function printSingleRecordNow(recordId) {
@@ -3554,6 +3734,7 @@ async function exportRecordsListToPdf(recordsList, filename) {
     return alert('لا توجد حركات مسجلة لتصديرها!');
   }
   const offCanvas = document.createElement('canvas');
+  const attachCanvas = document.createElement('canvas');
   const jpegs = [];
   const dept = localStorage.getItem('default_pdf_dept') || 'BMH-HOTEL';
   const managerName = localStorage.getItem('default_pdf_manager') || '';
@@ -3561,6 +3742,11 @@ async function exportRecordsListToPdf(recordsList, filename) {
   for (const rec of recordsList) {
     await renderRecordOnFormCanvas(offCanvas, rec, { dept, managerName });
     jpegs.push(offCanvas.toDataURL('image/jpeg', 0.92));
+
+    if (rec.attachment) {
+      await renderAttachmentOnA4Canvas(attachCanvas, rec, { dept, managerName });
+      jpegs.push(attachCanvas.toDataURL('image/jpeg', 0.92));
+    }
   }
   const pdfBlob = buildPdfFromJpegs(jpegs);
   triggerPdfDownload(pdfBlob, filename || `استمارات_الغياب_والإجازات_${new Date().toISOString().slice(0,10)}.pdf`);
