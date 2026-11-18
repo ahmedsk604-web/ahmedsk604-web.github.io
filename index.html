@@ -2457,7 +2457,16 @@ async function saveData(actionMode = false) {
 
   if (checkedNames.length === 0) {
     openWorkerSlide();
-    return alert('يرجى تحديد موظف واحد على الأقل من سلايد الأسماء!');
+    const picker = document.getElementById('workerPickerContainer');
+    const wrap = document.getElementById('workerSelectWrap');
+    const searchInput = document.getElementById('workerSearch');
+    if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (wrap) wrap.style.borderColor = 'var(--danger)';
+    alert('يرجى تحديد موظف واحد على الأقل من قائمة الأسماء!');
+    if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (searchInput) searchInput.focus({ preventScroll: true });
+    if (wrap) setTimeout(() => { wrap.style.borderColor = ''; }, 2500);
+    return;
   }
 
   const type = document.getElementById('type').value;
