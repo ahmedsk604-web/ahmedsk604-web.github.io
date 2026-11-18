@@ -650,6 +650,7 @@ body {
           </div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
             <button id="btnBatchApprove" type="button" class="btn btn-sm" style="background:#16a34a; color:#fff; height:34px; font-weight:800; display:none;" onclick="approveSelectedRecordsBatch()">✍️ اعتماد وموافقة المحدد</button>
+            <button id="btnBatchReject" type="button" class="btn btn-sm" style="background:#dc2626; color:#fff; height:34px; font-weight:800; display:none;" onclick="rejectSelectedRecordsBatch()">✗ عدم موافقة المحدد</button>
             <button type="button" class="btn btn-primary btn-sm" style="background:#1d4ed8; height:34px; font-weight:800;" onclick="printSelectedRecordsBatch()">🖨️ طباعة</button>
             <button type="button" class="btn btn-success btn-sm" style="background:#0f766e; height:34px; font-weight:800;" onclick="exportSelectedRecordsToPdf()">📄 Pdf</button>
           </div>
@@ -1764,6 +1765,8 @@ function applyUserPermissionsUI() {
 
   const btnBatchApprove = document.getElementById('btnBatchApprove');
   if (btnBatchApprove) btnBatchApprove.style.display = isApprovalManager() ? 'inline-flex' : 'none';
+  const btnBatchReject = document.getElementById('btnBatchReject');
+  if (btnBatchReject) btnBatchReject.style.display = isApprovalManager() ? 'inline-flex' : 'none';
 
   const isMgr = canDeleteRecord();
   const filterWorkerContainer = document.getElementById('filterWorkerContainer');
@@ -2642,7 +2645,8 @@ function renderRecords() {
     else if (r.type === 'إجازة تعويضية') badgeClass = 'badge-info';
 
     const isSelected = selectedRecordIds.has(String(r.id));
-    const isApproved = r.status === 'approved' || !!r.approvedBy;
+    const isRejected = r.status === 'rejected';
+    const isApproved = !isRejected && (r.status === 'approved' || !!r.approvedBy);
     const cleanNotes = (r.notes || '').replace(/\[استئذان\s+من\s+[^\]]+\]/gi, '').trim();
 
     return `
@@ -2654,7 +2658,9 @@ function renderRecords() {
             ${r.role ? `<span class="${getRoleBadgeClass(r.role)}">${r.role}</span>` : ''}
           </label>
           <div style="display:flex; align-items:center; gap:6px;">
-            ${isApproved ? 
+            ${isRejected ?
+              `<span style="font-size:11px; font-weight:800; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; padding:2px 8px; border-radius:6px;">✗ غير موافق (${r.approvedBy || 'بلال طلال'})</span>` :
+              isApproved ? 
               `<span style="font-size:11px; font-weight:800; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px;">✓ معتمد (${r.approvedBy || 'بلال طلال'})</span>` : 
               `<span style="font-size:11px; font-weight:700; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px;">⏳ قيد الانتظار</span>`
             }
@@ -2696,9 +2702,10 @@ function renderRecords() {
             ` : '';
           })()}
           ${isApprovalManager() ? (
-            !isApproved ? 
-              `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>` :
-              `<button class="btn btn-sm" onclick="unapproveRecord('${r.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700;">↩ إلغاء الاعتماد</button>`
+            (!isApproved && !isRejected) ? 
+              `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>
+               <button class="btn btn-sm" onclick="rejectRecord('${r.id}')" style="background:#dc2626; color:#fff; font-weight:700;">✗ غير موافق</button>` :
+              `<button class="btn btn-sm" onclick="unapproveRecord('${r.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700;">↩ ${isRejected ? 'إلغاء عدم الموافقة' : 'إلغاء الاعتماد'}</button>`
           ) : ''}
           <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
           <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
@@ -3047,6 +3054,46 @@ function approveRecord(recordId) {
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
   renderRecords();
   pushToCloud();
+}
+
+// عدم الموافقة على السجل
+function rejectRecord(recordId) {
+  const rec = dbRecords.find(r => String(r.id) === String(recordId));
+  if (!rec) return;
+  if (!confirm('هل تريد تسجيل (عدم الموافقة) على هذه الحركة؟')) return;
+
+  rec.status = 'rejected';
+  rec.approvedBy = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
+  rec.approvedAt = new Date().toISOString().slice(0, 10);
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  renderRecords();
+  pushToCloud();
+}
+
+// عدم موافقة جماعي للسجلات المحددة
+function rejectSelectedRecordsBatch() {
+  if (selectedRecordIds.size === 0) {
+    return alert('يرجى وضع علامة (☑️) على حركة واحدة أو أكثر لتسجيل عدم الموافقة عليها!');
+  }
+  if (!confirm(`هل تريد تسجيل (عدم الموافقة) على (${selectedRecordIds.size}) حركة؟`)) return;
+  const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  let count = 0;
+  dbRecords.forEach(r => {
+    if (selectedRecordIds.has(String(r.id))) {
+      r.status = 'rejected';
+      r.approvedBy = approver;
+      r.approvedAt = todayStr;
+      count++;
+    }
+  });
+
+  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  renderRecords();
+  pushToCloud();
+  alert(`✗ تم تسجيل عدم الموافقة على (${count}) حركة بواسطة ${approver}`);
 }
 
 // إلغاء اعتماد السجل
@@ -3399,13 +3446,18 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
   }
 
   // فحص حالة الاعتماد والموافقة
-  const isApproved = record.status === 'approved' || !!record.approvedBy || extraOpts.approved;
+  const isRejected = record.status === 'rejected';
+  const isApproved = isRejected || record.status === 'approved' || !!record.approvedBy || extraOpts.approved;
   const approverName = record.approvedBy || extraOpts.managerName || (isApproved ? 'بلال طلال' : '');
   const approvalDate = record.approvedAt || (isApproved ? reqDate : '');
 
   if (isApproved) {
-    // 1) وضع علامة صح في مربع موافق (Approve) للمدير المباشر في سنتر المربع بالضبط
-    drawCheckInBox(40.5, 762, 21, 20);
+    // 1) وضع علامة صح في مربع موافق (Approve) أو غير موافق (Not Approve) للمدير المباشر
+    if (isRejected) {
+      drawCheckInBox(168, 762, 21, 20);
+    } else {
+      drawCheckInBox(40.5, 762, 21, 20);
+    }
 
     // 2) كتابة الاسم فوق خط الإسم
     drawInRectCenter(approverName, 115, 808, 195, 22, 14, '#0f172a', '700', 'rtl');
