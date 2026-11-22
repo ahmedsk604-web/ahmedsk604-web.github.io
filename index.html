@@ -650,7 +650,6 @@ body {
           </div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
             <button id="btnBatchApprove" type="button" class="btn btn-sm" style="background:#16a34a; color:#fff; height:34px; font-weight:800; display:none;" onclick="approveSelectedRecordsBatch()">✍️ اعتماد وموافقة المحدد</button>
-            <button id="btnBatchReject" type="button" class="btn btn-sm" style="background:#dc2626; color:#fff; height:34px; font-weight:800; display:none;" onclick="rejectSelectedRecordsBatch()">✗ عدم موافقة المحدد</button>
             <button type="button" class="btn btn-primary btn-sm" style="background:#1d4ed8; height:34px; font-weight:800;" onclick="printSelectedRecordsBatch()">🖨️ طباعة</button>
             <button type="button" class="btn btn-success btn-sm" style="background:#0f766e; height:34px; font-weight:800;" onclick="exportSelectedRecordsToPdf()">📄 Pdf</button>
           </div>
@@ -1220,6 +1219,107 @@ function parseMqttPublishPayload(buf) {
   }
 }
 
+// دالة ذكية لمقارنة ودمج سجلين لنفس الحركة مع حماية مطلقة لاعتماد بلال طلال والمدير
+function mergeSingleRecord(localRec, cloudRec) {
+  if (!localRec) return { winner: cloudRec, isLocalNewer: false, changed: true };
+  if (!cloudRec) return { winner: localRec, isLocalNewer: true, changed: false };
+
+  // 1. تسوية حالة الاعتماد والموافقة
+  const localIsApproved = localRec.status === 'approved' || !!localRec.approvedBy;
+  const cloudIsApproved = cloudRec.status === 'approved' || !!cloudRec.approvedBy;
+
+  let chosenApproval = null;
+  let isLocalNewer = false;
+
+  if (localIsApproved && !cloudIsApproved) {
+    // الحالة المحلية معتمدة، بينما السحابية غير معتمدة
+    const cloudUnapprovedAt = cloudRec.unapprovedTimestamp || 0;
+    const localApprovedAt = localRec.approvedTimestamp || 1;
+    if (cloudUnapprovedAt > localApprovedAt) {
+      chosenApproval = {
+        status: 'pending',
+        approvedBy: '',
+        approvedAt: '',
+        unapprovedTimestamp: cloudUnapprovedAt
+      };
+    } else {
+      chosenApproval = {
+        status: 'approved',
+        approvedBy: localRec.approvedBy || 'بلال طلال',
+        approvedAt: localRec.approvedAt || new Date().toISOString().slice(0, 10),
+        approvedTimestamp: localRec.approvedTimestamp || Date.now()
+      };
+      isLocalNewer = true;
+    }
+  } else if (!localIsApproved && cloudIsApproved) {
+    // الحالة الواردة من السحابة معتمدة، بينما المحلية غير معتمدة
+    const localUnapprovedAt = localRec.unapprovedTimestamp || 0;
+    const cloudApprovedAt = cloudRec.approvedTimestamp || 1;
+    if (localUnapprovedAt > cloudApprovedAt) {
+      chosenApproval = {
+        status: 'pending',
+        approvedBy: '',
+        approvedAt: '',
+        unapprovedTimestamp: localUnapprovedAt
+      };
+      isLocalNewer = true;
+    } else {
+      chosenApproval = {
+        status: 'approved',
+        approvedBy: cloudRec.approvedBy || 'بلال طلال',
+        approvedAt: cloudRec.approvedAt || new Date().toISOString().slice(0, 10),
+        approvedTimestamp: cloudRec.approvedTimestamp || Date.now()
+      };
+    }
+  } else if (localIsApproved && cloudIsApproved) {
+    chosenApproval = {
+      status: 'approved',
+      approvedBy: cloudRec.approvedBy || localRec.approvedBy || 'بلال طلال',
+      approvedAt: cloudRec.approvedAt || localRec.approvedAt || '',
+      approvedTimestamp: Math.max(localRec.approvedTimestamp || 0, cloudRec.approvedTimestamp || 0)
+    };
+  } else {
+    chosenApproval = {
+      status: 'pending',
+      approvedBy: '',
+      approvedAt: '',
+      unapprovedTimestamp: Math.max(localRec.unapprovedTimestamp || 0, cloudRec.unapprovedTimestamp || 0)
+    };
+  }
+
+  // 2. تسوية محتوى السجل (البيانات، التواريخ، الملاحظات، المرفقات)
+  const localEditTime = new Date(localRec.lastEditedAt || localRec.timestamp || 0).getTime();
+  const cloudEditTime = new Date(cloudRec.lastEditedAt || cloudRec.timestamp || 0).getTime();
+  const localUpdateTime = localRec.updatedAt || localEditTime;
+  const cloudUpdateTime = cloudRec.updatedAt || cloudEditTime;
+
+  let baseContent = (cloudUpdateTime > localUpdateTime) ? { ...cloudRec } : { ...localRec };
+  if (localUpdateTime > cloudUpdateTime) {
+    isLocalNewer = true;
+  }
+
+  // الحفاظ على المرفقات إن وجدت في أحد الطرفين
+  const localAtts = (localRec.attachments && localRec.attachments.length > 0) ? localRec.attachments : (localRec.attachment ? [localRec.attachment] : []);
+  const cloudAtts = (cloudRec.attachments && cloudRec.attachments.length > 0) ? cloudRec.attachments : (cloudRec.attachment ? [cloudRec.attachment] : []);
+  if (localAtts.length > 0 && cloudAtts.length === 0) {
+    baseContent.attachments = [...localAtts];
+    baseContent.attachment = localAtts[0] || '';
+    isLocalNewer = true;
+  } else if (cloudAtts.length > 0) {
+    baseContent.attachments = [...cloudAtts];
+    baseContent.attachment = cloudAtts[0] || '';
+  }
+
+  const finalMerged = {
+    ...baseContent,
+    ...chosenApproval,
+    updatedAt: Math.max(localUpdateTime, cloudUpdateTime, chosenApproval.approvedTimestamp || 0, chosenApproval.unapprovedTimestamp || 0)
+  };
+
+  const changed = JSON.stringify(localRec) !== JSON.stringify(finalMerged);
+  return { winner: finalMerged, isLocalNewer, changed };
+}
+
 // دمج ذكي للسجلات والعمال والحسابات بين جميع الحاسبات والهواتف بدون فقدان أي حركة
 function mergeCloudPayload(payload) {
   if (!payload || typeof payload !== "object") return false;
@@ -1241,7 +1341,7 @@ function mergeCloudPayload(payload) {
     }
   });
 
-  // 2. دمج سجلات الغياب والإجازات
+  // 2. دمج سجلات الغياب والإجازات بذكاء يحمي الاعتمادات
   if (Array.isArray(payload.records)) {
     const incomingIds = new Set();
     const recMap = new Map();
@@ -1258,9 +1358,14 @@ function mergeCloudPayload(payload) {
         incomingIds.add(sId);
         if (!deletedRecordIds.has(sId)) {
           const existing = recMap.get(sId);
-          if (!existing || JSON.stringify(existing) !== JSON.stringify(r)) {
+          if (!existing) {
             recMap.set(sId, r);
             changed = true;
+          } else {
+            const mergeRes = mergeSingleRecord(existing, r);
+            recMap.set(sId, mergeRes.winner);
+            if (mergeRes.changed) changed = true;
+            if (mergeRes.isLocalNewer) localHasUnpushedData = true;
           }
         }
       }
@@ -1408,8 +1513,6 @@ async function pullFromCloud(showToast = false) {
   });
   if (activeCount === 0) {
     startRealtimeCloudStream();
-  } else {
-    pushToCloud();
   }
   if (showToast) {
     setTimeout(() => {
@@ -1501,9 +1604,13 @@ function connectBrokerSocket(url) {
         if (jsonStr) {
           try {
             const payload = JSON.parse(jsonStr);
+            if (payload && payload.sender === CLIENT_DEVICE_ID) {
+              // صدى لنفس الرسالة المنشورة من هذا الجهاز، نتجاهلها لمنع ارتداد الحالة
+              return;
+            }
             if (payload && (payload.records || payload.workers || payload.users)) {
               const updated = mergeCloudPayload(payload);
-              if (updated && payload.sender !== CLIENT_DEVICE_ID) {
+              if (updated) {
                 setSyncBadge("☁️ تم التحديث تلقائياً من حاسبة / جهاز آخر ✓", "var(--success)");
               } else {
                 setSyncBadge("☁️ متزامن تلقائياً مع جميع الحسابات والأجهزة ✓", "var(--success)");
@@ -1765,8 +1872,6 @@ function applyUserPermissionsUI() {
 
   const btnBatchApprove = document.getElementById('btnBatchApprove');
   if (btnBatchApprove) btnBatchApprove.style.display = isApprovalManager() ? 'inline-flex' : 'none';
-  const btnBatchReject = document.getElementById('btnBatchReject');
-  if (btnBatchReject) btnBatchReject.style.display = isApprovalManager() ? 'inline-flex' : 'none';
 
   const isMgr = canDeleteRecord();
   const filterWorkerContainer = document.getElementById('filterWorkerContainer');
@@ -2457,16 +2562,7 @@ async function saveData(actionMode = false) {
 
   if (checkedNames.length === 0) {
     openWorkerSlide();
-    const picker = document.getElementById('workerPickerContainer');
-    const wrap = document.getElementById('workerSelectWrap');
-    const searchInput = document.getElementById('workerSearch');
-    if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if (wrap) wrap.style.borderColor = 'var(--danger)';
-    alert('يرجى تحديد موظف واحد على الأقل من قائمة الأسماء!');
-    if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if (searchInput) searchInput.focus({ preventScroll: true });
-    if (wrap) setTimeout(() => { wrap.style.borderColor = ''; }, 2500);
-    return;
+    return alert('يرجى تحديد موظف واحد على الأقل من سلايد الأسماء!');
   }
 
   const type = document.getElementById('type').value;
@@ -2654,8 +2750,7 @@ function renderRecords() {
     else if (r.type === 'إجازة تعويضية') badgeClass = 'badge-info';
 
     const isSelected = selectedRecordIds.has(String(r.id));
-    const isRejected = r.status === 'rejected';
-    const isApproved = !isRejected && (r.status === 'approved' || !!r.approvedBy);
+    const isApproved = r.status === 'approved' || !!r.approvedBy;
     const cleanNotes = (r.notes || '').replace(/\[استئذان\s+من\s+[^\]]+\]/gi, '').trim();
 
     return `
@@ -2667,9 +2762,7 @@ function renderRecords() {
             ${r.role ? `<span class="${getRoleBadgeClass(r.role)}">${r.role}</span>` : ''}
           </label>
           <div style="display:flex; align-items:center; gap:6px;">
-            ${isRejected ?
-              `<span style="font-size:11px; font-weight:800; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; padding:2px 8px; border-radius:6px;">✗ غير موافق (${r.approvedBy || 'بلال طلال'})</span>` :
-              isApproved ? 
+            ${isApproved ? 
               `<span style="font-size:11px; font-weight:800; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px;">✓ معتمد (${r.approvedBy || 'بلال طلال'})</span>` : 
               `<span style="font-size:11px; font-weight:700; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px;">⏳ قيد الانتظار</span>`
             }
@@ -2711,10 +2804,9 @@ function renderRecords() {
             ` : '';
           })()}
           ${isApprovalManager() ? (
-            (!isApproved && !isRejected) ? 
-              `<button class="btn btn-sm" onclick="approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700;">✍️ موافقة وتوقيع</button>
-               <button class="btn btn-sm" onclick="rejectRecord('${r.id}')" style="background:#dc2626; color:#fff; font-weight:700;">✗ غير موافق</button>` :
-              `<button class="btn btn-sm" onclick="unapproveRecord('${r.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700;">↩ ${isRejected ? 'إلغاء عدم الموافقة' : 'إلغاء الاعتماد'}</button>`
+            !isApproved ? 
+              `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); approveRecord('${r.id}')" style="background:#16a34a; color:#fff; font-weight:700; cursor:pointer;">✍️ موافقة وتوقيع</button>` :
+              `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); unapproveRecord('${r.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700; cursor:pointer;">↩ إلغاء الاعتماد</button>`
           ) : ''}
           <button class="btn btn-primary btn-sm" onclick="printSingleRecordNow('${r.id}')" style="background:#1d4ed8; color:#fff;">🖨️ طباعة فورية</button>
           <button class="btn btn-primary btn-sm" onclick="openPdfFormModal('${r.id}', true)" style="background:#0f766e; color:#fff;">📄 تصدير PDF</button>
@@ -3055,54 +3147,18 @@ function approveRecord(recordId) {
 
   const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
   const todayStr = new Date().toISOString().slice(0, 10);
+  const nowMs = Date.now();
 
   rec.status = 'approved';
   rec.approvedBy = approver;
   rec.approvedAt = todayStr;
+  rec.approvedTimestamp = nowMs;
+  rec.updatedAt = nowMs;
 
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
   renderRecords();
+  renderSummary();
   pushToCloud();
-}
-
-// عدم الموافقة على السجل
-function rejectRecord(recordId) {
-  const rec = dbRecords.find(r => String(r.id) === String(recordId));
-  if (!rec) return;
-  if (!confirm('هل تريد تسجيل (عدم الموافقة) على هذه الحركة؟')) return;
-
-  rec.status = 'rejected';
-  rec.approvedBy = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
-  rec.approvedAt = new Date().toISOString().slice(0, 10);
-
-  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
-  renderRecords();
-  pushToCloud();
-}
-
-// عدم موافقة جماعي للسجلات المحددة
-function rejectSelectedRecordsBatch() {
-  if (selectedRecordIds.size === 0) {
-    return alert('يرجى وضع علامة (☑️) على حركة واحدة أو أكثر لتسجيل عدم الموافقة عليها!');
-  }
-  if (!confirm(`هل تريد تسجيل (عدم الموافقة) على (${selectedRecordIds.size}) حركة؟`)) return;
-  const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  let count = 0;
-  dbRecords.forEach(r => {
-    if (selectedRecordIds.has(String(r.id))) {
-      r.status = 'rejected';
-      r.approvedBy = approver;
-      r.approvedAt = todayStr;
-      count++;
-    }
-  });
-
-  localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
-  renderRecords();
-  pushToCloud();
-  alert(`✗ تم تسجيل عدم الموافقة على (${count}) حركة بواسطة ${approver}`);
 }
 
 // إلغاء اعتماد السجل
@@ -3110,12 +3166,16 @@ function unapproveRecord(recordId) {
   const rec = dbRecords.find(r => String(r.id) === String(recordId));
   if (!rec) return;
 
+  const nowMs = Date.now();
   rec.status = 'pending';
   rec.approvedBy = '';
   rec.approvedAt = '';
+  rec.unapprovedTimestamp = nowMs;
+  rec.updatedAt = nowMs;
 
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
   renderRecords();
+  renderSummary();
   pushToCloud();
 }
 
@@ -3126,6 +3186,7 @@ function approveSelectedRecordsBatch() {
   }
   const approver = (currentUser && currentUser.displayName) ? currentUser.displayName : 'بلال طلال';
   const todayStr = new Date().toISOString().slice(0, 10);
+  const nowMs = Date.now();
 
   let count = 0;
   dbRecords.forEach(r => {
@@ -3133,12 +3194,16 @@ function approveSelectedRecordsBatch() {
       r.status = 'approved';
       r.approvedBy = approver;
       r.approvedAt = todayStr;
+      r.approvedTimestamp = nowMs;
+      r.updatedAt = nowMs;
       count++;
     }
   });
 
   localStorage.setItem('attendance_db', JSON.stringify(dbRecords));
+  selectedRecordIds.clear();
   renderRecords();
+  renderSummary();
   pushToCloud();
   alert(`✅ تم اعتماد والموافقة على (${count}) حركة بنجاح بواسطة ${approver} مع إضافة التوقيع والاسم!`);
 }
@@ -3455,18 +3520,13 @@ async function renderRecordOnFormCanvas(canvas, record, extraOpts = {}) {
   }
 
   // فحص حالة الاعتماد والموافقة
-  const isRejected = record.status === 'rejected';
-  const isApproved = isRejected || record.status === 'approved' || !!record.approvedBy || extraOpts.approved;
+  const isApproved = record.status === 'approved' || !!record.approvedBy || extraOpts.approved;
   const approverName = record.approvedBy || extraOpts.managerName || (isApproved ? 'بلال طلال' : '');
   const approvalDate = record.approvedAt || (isApproved ? reqDate : '');
 
   if (isApproved) {
-    // 1) وضع علامة صح في مربع موافق (Approve) أو غير موافق (Not Approve) للمدير المباشر
-    if (isRejected) {
-      drawCheckInBox(168, 762, 21, 20);
-    } else {
-      drawCheckInBox(40.5, 762, 21, 20);
-    }
+    // 1) وضع علامة صح في مربع موافق (Approve) للمدير المباشر في سنتر المربع بالضبط
+    drawCheckInBox(40.5, 762, 21, 20);
 
     // 2) كتابة الاسم فوق خط الإسم
     drawInRectCenter(approverName, 115, 808, 195, 22, 14, '#0f172a', '700', 'rtl');
